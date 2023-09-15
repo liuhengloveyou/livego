@@ -1,0 +1,221 @@
+
+###############################################
+# General settings
+
+readTimeout: 10s
+writeTimeout: 10s
+writeQueueSize: 512
+udpMaxPayloadSize: 1472
+
+# HTTP URL to perform external authentication.
+# Every time a user wants to authenticate, the server calls this URL
+# with the POST method and a body containing:
+# {
+#   "ip": "ip",
+#   "user": "user",
+#   "password": "password",
+#   "path": "path",
+#   "protocol": "rtsp|rtmp|hls|webrtc",
+#   "id": "id",
+#   "action": "read|publish",
+#   "query": "query"
+# }
+# If the response code is 20x, authentication is accepted, otherwise
+# it is discarded.
+externalAuthenticationURL:
+
+# Enable the HTTP API.
+api: no
+apiAddress: 127.0.0.1:9997
+
+# Enable Prometheus-compatible metrics.
+metrics: no
+metricsAddress: 127.0.0.1:9998
+
+# Enable pprof-compatible endpoint to monitor performances.
+pprof: no
+pprofAddress: 127.0.0.1:9999
+
+# Command to run when a client connects to the server.
+# Prepend ./ to run an executable in the current folder (example: "./ffmpeg")
+# This is terminated with SIGINT when a client disconnects from the server.
+# The following environment variables are available:
+# * RTSP_PORT: RTSP server port
+runOnConnect:
+# Restart the command if it exits.
+runOnConnectRestart: no
+
+###############################################
+# RTSP settings
+rtsp: yes
+protocols: [udp, multicast, tcp]
+encryption: "no"
+rtspAddress: :8554
+rtspsAddress: :8322
+rtpAddress: :8000
+rtcpAddress: :8001
+multicastIPRange: 224.1.0.0/16
+multicastRTPPort: 8002
+multicastRTCPPort: 8003
+# openssl genrsa -out server.key 2048
+# openssl req -new -x509 -sha256 -key server.key -out server.crt -days 3650
+serverKey: server.key
+serverCert: server.crt
+authMethods: [basic]
+
+###############################################
+# RTMP settings
+rtmp: yes
+rtmpAddress: :1935
+rtmpEncryption: "no"
+rtmpsAddress: :1936
+# Path to the server key. This is needed only when encryption is "strict" or "optional".
+# This can be generated with:
+# openssl genrsa -out server.key 2048
+# openssl req -new -x509 -sha256 -key server.key -out server.crt -days 3650
+rtmpServerKey: server.key
+# Path to the server certificate. This is needed only when encryption is "strict" or "optional".
+rtmpServerCert: server.crt
+
+###############################################
+# WebRTC settings
+webrtc: true
+webrtcAddress: :8889
+webrtcEncryption: no
+# Path to the server key.
+# This can be generated with:
+# openssl genrsa -out server.key 2048
+# openssl req -new -x509 -sha256 -key server.key -out server.crt -days 3650
+webrtcServerKey: server.key
+# Path to the server certificate.
+webrtcServerCert: server.crt
+webrtcAllowOrigin: '*'
+webrtcTrustedProxies: []
+# List of ICE servers.
+webrtcICEServers2:
+  # URL can point to a STUN, TURN or TURNS server.
+  # STUN servers are used to obtain the public IP of server and clients. They are
+  # needed when server and clients are on different LANs.
+  # TURN/TURNS servers are needed when a direct connection between server and
+  # clients is not possible. All traffic is routed through them.
+- url: stun:stun.l.google.com:19302
+  # if user is "AUTH_SECRET", then authentication is secret based.
+  # the secret must be inserted into the password field.
+  username: ''
+  password: ''
+# List of public IP addresses that are to be used as a host.
+# This is used typically for servers that are behind 1:1 D-NAT.
+webrtcICEHostNAT1To1IPs: []
+# Address of a ICE UDP listener in format host:port.
+# If filled, ICE traffic will pass through a single UDP port,
+# allowing the deployment of the server inside a container or behind a NAT.
+webrtcICEUDPMuxAddress:
+# Address of a ICE TCP listener in format host:port.
+# If filled, ICE traffic will pass through a single TCP port,
+# allowing the deployment of the server inside a container or behind a NAT.
+# Using this setting forces usage of the TCP protocol, which is not
+# optimal for WebRTC.
+webrtcICETCPMuxAddress:
+
+###############################################
+# SRT settings
+srt: no
+srtAddress: :8890
+
+###############################################
+# Path settings
+paths:
+  camera1:
+    source: rtsp://admin:Abc123456@192.168.100.234:554/Streaming/Channels/101
+  all:
+    ###############################################
+    # General path settings
+
+    # Source of the stream. This can be:
+    # * publisher -> the stream is provided by a RTSP, RTMP, WebRTC or SRT client
+    # * rtsp://existing-url -> the stream is pulled from another RTSP server / camera
+    # * rtsps://existing-url -> the stream is pulled from another RTSP server / camera with RTSPS
+    # * rtmp://existing-url -> the stream is pulled from another RTMP server / camera
+    # * rtmps://existing-url -> the stream is pulled from another RTMP server / camera with RTMPS
+    # * http://existing-url/stream.m3u8 -> the stream is pulled from another HLS server / camera
+    # * https://existing-url/stream.m3u8 -> the stream is pulled from another HLS server / camera with HTTPS
+    # * udp://ip:port -> the stream is pulled with UDP, by listening on the specified IP and port
+    # * srt://existing-url -> the stream is pulled from another SRT server / camera
+    # * whep://existing-url -> the stream is pulled from another WebRTC server / camera
+    # * wheps://existing-url -> the stream is pulled from another WebRTC server / camera with HTTPS
+    # * redirect -> the stream is provided by another path or server
+    # * rpiCamera -> the stream is provided by a Raspberry Pi Camera
+    source: publisher
+    # If the source is a URL, and the source certificate is self-signed
+    # or invalid, you can provide the fingerprint of the certificate in order to
+    # validate it anyway. It can be obtained by running:
+    # openssl s_client -connect source_ip:source_port </dev/null 2>/dev/null | sed -n '/BEGIN/,/END/p' > server.crt
+    # openssl x509 -in server.crt -noout -fingerprint -sha256 | cut -d "=" -f2 | tr -d ':'
+    sourceFingerprint:
+    # If the source is a URL, it will be pulled only when at least
+    # one reader is connected, saving bandwidth.
+    sourceOnDemand: no
+    # If sourceOnDemand is "yes", readers will be put on hold until the source is
+    # ready or until this amount of time has passed.
+    sourceOnDemandStartTimeout: 10s
+    # If sourceOnDemand is "yes", the source will be closed when there are no
+    # readers connected and this amount of time has passed.
+    sourceOnDemandCloseAfter: 10s
+    # Maximum number of readers. Zero means no limit.
+    maxReaders: 0
+
+    ###############################################
+    # Authentication path settings
+
+    # Username required to publish.
+    # SHA256-hashed values can be inserted with the "sha256:" prefix.
+    publishUser:
+    # Password required to publish.
+    # SHA256-hashed values can be inserted with the "sha256:" prefix.
+    publishPass:
+    # IPs or networks (x.x.x.x/24) allowed to publish.
+    publishIPs: []
+
+    # Username required to read.
+    # SHA256-hashed values can be inserted with the "sha256:" prefix.
+    readUser:
+    # password required to read.
+    # SHA256-hashed values can be inserted with the "sha256:" prefix.
+    readPass:
+    # IPs or networks (x.x.x.x/24) allowed to read.
+    readIPs: []
+
+    ###############################################
+    # Publisher path settings (when source is "publisher")
+
+    # allow another client to disconnect the current publisher and publish in its place.
+    overridePublisher: yes
+    # if no one is publishing, redirect readers to this path.
+    # It can be can be a relative path  (i.e. /otherstream) or an absolute RTSP URL.
+    fallback:
+
+    ###############################################
+    # RTSP path settings (when source is a RTSP or a RTSPS URL)
+
+    # protocol used to pull the stream. available values are "automatic", "udp", "multicast", "tcp".
+    sourceProtocol: automatic
+    # support sources that don't provide server ports or use random server ports. This is a security issue
+    # and must be used only when interacting with sources that require it.
+    sourceAnyPortEnable: no
+    # range header to send to the source, in order to start streaming from the specified offset.
+    # available values:
+    # * clock: Absolute time
+    # * npt: Normal Play Time
+    # * smpte: SMPTE timestamps relative to the start of the recording
+    rtspRangeType:
+    # available values:
+    # * clock: UTC ISO 8601 combined date and time string, e.g. 20230812T120000Z
+    # * npt: duration such as "300ms", "1.5m" or "2h45m", valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h"
+    # * smpte: duration such as "300ms", "1.5m" or "2h45m", valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h"
+    rtspRangeStart:
+
+    ###############################################
+    # Redirect path settings (when source is "redirect")
+
+    # RTSP URL which clients will be redirected to.
+    sourceRedirect:
