@@ -148,8 +148,8 @@ class WHEPClient {
             iceServers: linkToIceServers(res.headers.get('Link')),
         });
 
-        // this.dataChannel = this.pc.createDataChannel("datachan");
-        // this.dataChannel.onmessage = (e) => this.onDataChannelMessage(evt);
+        this.dataChannel = this.pc.createDataChannel("datachan");
+        this.dataChannel.onmessage = (evt) => this.onDataChannelMessage(evt);
 
         const direction = "sendrecv";
         this.pc.addTransceiver("video", { direction });
@@ -168,7 +168,7 @@ class WHEPClient {
     }
 
     onDataChannelMessage(e) {
-        console.log("onDataChannelMessage:::", e)
+        console.log("onDataChannelMessage:::", e.data)
     }
 
     onLocalOffer(offer) {

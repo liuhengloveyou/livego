@@ -2,13 +2,13 @@
 package stream
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/bluenviron/gortsplib/v4"
 	"github.com/bluenviron/gortsplib/v4/pkg/description"
 	"github.com/bluenviron/gortsplib/v4/pkg/format"
+	"github.com/pion/rtcp"
 	"github.com/pion/rtp"
 
 	"github.com/liuhengloveyou/livego/asyncwriter"
@@ -23,10 +23,12 @@ type Stream struct {
 	desc          *description.Session
 	bytesReceived *uint64
 
-	smedias     map[*description.Media]*streamMedia
-	mutex       sync.RWMutex
+	smedias map[*description.Media]*streamMedia
+
 	rtspStream  *gortsplib.ServerStream
 	rtspsStream *gortsplib.ServerStream
+
+	mutex sync.RWMutex
 }
 
 // New allocates a Stream.
@@ -93,7 +95,6 @@ func (s *Stream) RTSPSStream(server *gortsplib.Server) *gortsplib.ServerStream {
 
 // AddReader adds a reader.
 func (s *Stream) AddReader(r *asyncwriter.Writer, medi *description.Media, forma format.Format, cb readerFunc) {
-	fmt.Println("Stream.AddReader:::", medi, forma, r, cb)
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -140,4 +141,26 @@ func (s *Stream) WriteRTPPacket(
 	defer s.mutex.RUnlock()
 
 	sf.writeRTPPacket(s, medi, pkt, ntp, pts)
+}
+
+func (s *Stream) UpdateStats(medi *description.Media, pkt rtcp.Packet) {
+	if tmpPkt, ok := pkt.(*rtcp.SenderReport); ok {
+		sm := s.smedias[medi]
+
+		sm.SSRC = tmpPkt.SSRC
+		sm.NTPTime = tmpPkt.NTPTime
+		sm.RTPTime = tmpPkt.RTPTime
+		sm.PacketCount = tmpPkt.PacketCount
+		sm.OctetCount = tmpPkt.OctetCount
+	}
+}
+
+func (s *Stream) GetStream(t string) *streamMedia {
+	for k, v := range s.smedias {
+		if string(k.Type) == t {
+			return v
+		}
+	}
+
+	return nil
 }

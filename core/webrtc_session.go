@@ -184,7 +184,7 @@ type webRTCSession struct {
 	secret    uuid.UUID
 	mutex     sync.RWMutex
 	pc        *webrtcpc.PeerConnection
-	datachan  *webrtc.DataChannel
+	Datachan  *webrtc.DataChannel
 
 	chNew           chan webRTCNewSessionReq
 	chAddCandidates chan webRTCAddSessionCandidatesReq
@@ -495,6 +495,32 @@ func (s *webRTCSession) runRead() (int, error) {
 		return 0, err
 	}
 
+	// Register data channel creation handling
+	pc.OnDataChannel(func(d *webrtc.DataChannel) {
+		fmt.Printf("New DataChannel %s %d\n", d.Label(), d.ID())
+
+		s.Datachan = d
+
+		// Register channel opening handling
+		// d.OnOpen(func() {
+		// 	fmt.Printf("Data channel '%s'-'%d' open. Random messages will now be sent to any connected DataChannels every 5 seconds\n", d.Label(), d.ID())
+		// 	time.Sleep(3 * time.Second)
+		// 	for range time.NewTicker(5 * time.Second).C {
+
+		// 		// Send the message as text
+		// 		sendErr := d.SendText(time.Now().GoString())
+		// 		if sendErr != nil {
+		// 			fmt.Println(sendErr)
+		// 		}
+		// 	}
+		// })
+
+		// Register text message handling
+		d.OnMessage(func(msg webrtc.DataChannelMessage) {
+			fmt.Printf("Message from DataChannel '%s': '%s'\n", d.Label(), string(msg.Data))
+		})
+	})
+
 	s.mutex.Lock()
 	s.pc = pc
 	s.mutex.Unlock()
@@ -504,7 +530,7 @@ func (s *webRTCSession) runRead() (int, error) {
 	defer res.stream.RemoveReader(writer)
 
 	for _, track := range tracks {
-		track.start(res.stream, writer)
+		track.start(s, res.stream, writer)
 	}
 
 	log.Logger.Info("is reading from path '%s', %s",

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -257,7 +258,7 @@ func newWebRTCOutgoingTrackVideo(desc *description.Session) (*webRTCOutgoingTrac
 
 				outTrack.UpdateStats(uint32(len(pkt.Payload)))
 
-				fmt.Println(">>>", pkt)
+				// fmt.Println(">>>", pkt)
 			}
 
 			return nil
@@ -383,32 +384,30 @@ func newWebRTCOutgoingTrackAudio(desc *description.Session) (*webRTCOutgoingTrac
 }
 
 func (t *webRTCOutgoingTrack) start(
+	sess *webRTCSession,
 	stream *stream.Stream,
 	writer *asyncwriter.Writer,
 ) {
 
-	// for {
-	// 	// Read the RTCP packets as they become available for our new remote track
-	// 	rtcpPackets, _, rtcpErr := receiver.ReadRTCP()
-	// 	if rtcpErr != nil {
-	// 		panic(rtcpErr)
-	// 	}
+	go func() {
+		for {
+			time.Sleep(time.Second)
+			s := stream.GetStream("video")
 
-	// 	for _, r := range rtcpPackets {
-	// 		// Print a string description of the packets
-	// 		if stringer, canString := r.(fmt.Stringer); canString {
-	// 			fmt.Printf("Received RTCP Packet: %v", stringer.String())
-	// 		}
-	// 	}
-	// }
+			sb, _ := json.Marshal(s)
+			if sendErr := sess.Datachan.Send(sb); sendErr != nil {
+				fmt.Println(sendErr)
+			}
+		}
+	}()
 
 	// read incoming RTCP packets to make interceptors work
 	go func() {
 		for {
-			pkts, _, err := t.sender.ReadRTCP()
+			pkts, _, _ := t.sender.ReadRTCP()
 			for _, pkt := range pkts {
 				if _, ok := pkt.(*rtcp.ReceiverReport); ok {
-					fmt.Println("@@@@@@@@@@@@", pkt, err)
+					// fmt.Println("@@@@@@@@@@@@", pkt, err)
 				}
 
 			}

@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/bluenviron/gortsplib/v4"
@@ -144,7 +143,6 @@ func (s *rtspSource) Run(ctx context.Context, cnf *conf.PathConf, reloadConf cha
 				return err
 			}
 
-			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!111111111")
 			res := s.parent.SetReady(PathSourceStaticSetReadyReq{
 				Desc:               desc,
 				GenerateRTPPackets: false,
@@ -154,7 +152,6 @@ func (s *rtspSource) Run(ctx context.Context, cnf *conf.PathConf, reloadConf cha
 				return res.err
 			}
 
-			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 			defer s.parent.SetNotReady(PathSourceStaticSetNotReadyReq{})
 
 			for _, medi := range desc.Medias {
@@ -163,11 +160,10 @@ func (s *rtspSource) Run(ctx context.Context, cnf *conf.PathConf, reloadConf cha
 					cforma := forma
 
 					c.OnPacketRTCPAny(func(medi *description.Media, pkt rtcp.Packet) {
-						fmt.Println("OnPacketRTCPAny>>>>>>", medi, pkt)
+						res.stream.UpdateStats(medi, pkt)
 					})
 
 					c.OnPacketRTP(cmedi, cforma, func(pkt *rtp.Packet) {
-						fmt.Println("OnPacketRTP>>>>>>", pkt)
 						pts, ok := c.PacketPTS(cmedi, pkt)
 						if !ok {
 							return

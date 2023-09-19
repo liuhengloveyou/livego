@@ -151,7 +151,6 @@ func (pm *PathManager) close() {
 func (pm *PathManager) run() {
 	defer pm.wg.Done()
 
-	fmt.Println("@@@@@@@@@@@@PathManager.run", pm.PathConfs, pm.Paths)
 outer:
 	for {
 		select {
