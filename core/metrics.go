@@ -24,13 +24,11 @@ type metricsParent interface {
 type Metrics struct {
 	parent metricsParent
 
-	httpServer    *httpserv.WrappedServer
-	mutex         sync.Mutex
-	pathManager   apiPathManager
-	rtspServer    apiRTSPServer
-	rtspsServer   apiRTSPServer
-	rtmpServer    apiRTMPServer
-	webRTCManager apiWebRTCManager
+	httpServer  *httpserv.WrappedServer
+	mutex       sync.Mutex
+	rtspServer  apiRTSPServer
+	rtspsServer apiRTSPServer
+	rtmpServer  apiRTMPServer
 }
 
 func newMetrics(
@@ -75,7 +73,7 @@ func (m *Metrics) close() {
 func (m *Metrics) onMetrics(ctx *gin.Context) {
 	out := ""
 
-	data, err := m.pathManager.apiPathsList()
+	data, err := DefaultPathManager.apiPathsList()
 	if err == nil && len(data.Items) != 0 {
 		for _, i := range data.Items {
 			var state string
@@ -177,32 +175,32 @@ func (m *Metrics) onMetrics(ctx *gin.Context) {
 		}
 	}
 
-	if !interfaceIsEmpty(m.webRTCManager) {
-		data, err := m.webRTCManager.apiSessionsList()
-		if err == nil && len(data.Items) != 0 {
-			for _, i := range data.Items {
-				tags := "{id=\"" + i.ID.String() + "\"}"
-				out += metric("webrtc_sessions", tags, 1)
-				out += metric("webrtc_sessions_bytes_received", tags, int64(i.BytesReceived))
-				out += metric("webrtc_sessions_bytes_sent", tags, int64(i.BytesSent))
-			}
-		} else {
-			out += metric("webrtc_sessions", "", 0)
-			out += metric("webrtc_sessions_bytes_received", "", 0)
-			out += metric("webrtc_sessions_bytes_sent", "", 0)
-		}
-	}
+	// if !interfaceIsEmpty(m.webRTCManager) {
+	// 	data, err := m.webRTCManager.apiSessionsList()
+	// 	if err == nil && len(data.Items) != 0 {
+	// 		for _, i := range data.Items {
+	// 			tags := "{id=\"" + i.ID.String() + "\"}"
+	// 			out += metric("webrtc_sessions", tags, 1)
+	// 			out += metric("webrtc_sessions_bytes_received", tags, int64(i.BytesReceived))
+	// 			out += metric("webrtc_sessions_bytes_sent", tags, int64(i.BytesSent))
+	// 		}
+	// 	} else {
+	// 		out += metric("webrtc_sessions", "", 0)
+	// 		out += metric("webrtc_sessions_bytes_received", "", 0)
+	// 		out += metric("webrtc_sessions_bytes_sent", "", 0)
+	// 	}
+	// }
 
 	ctx.Writer.WriteHeader(http.StatusOK)
 	io.WriteString(ctx.Writer, out) //nolint:errcheck
 }
 
 // pathManagerSet is called by pathManager.
-func (m *Metrics) pathManagerSet(s apiPathManager) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	m.pathManager = s
-}
+// func (m *Metrics) pathManagerSet(s apiPathManager) {
+// 	m.mutex.Lock()
+// 	defer m.mutex.Unlock()
+// 	m.pathManager = s
+// }
 
 // setRTSPServer is called by rtspServer (plain).
 func (m *Metrics) setRTSPServer(s apiRTSPServer) {
@@ -226,8 +224,8 @@ func (m *Metrics) rtmpServerSet(s apiRTMPServer) {
 }
 
 // webRTCManagerSet is called by webRTCManager.
-func (m *Metrics) WebRTCManagerSet(s apiWebRTCManager) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	m.webRTCManager = s
-}
+// func (m *Metrics) WebRTCManagerSet(s apiWebRTCManager) {
+// 	m.mutex.Lock()
+// 	defer m.mutex.Unlock()
+// 	m.webRTCManager = s
+// }

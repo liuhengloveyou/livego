@@ -129,6 +129,7 @@ func (s *sourceStatic) stop() {
 }
 
 func (s *sourceStatic) Run() {
+	log.Logger.Info("@@@@@@sourceStatic.Run", s.conf)
 	defer close(s.done)
 
 	var innerCtx context.Context

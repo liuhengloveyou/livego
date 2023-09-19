@@ -15,6 +15,7 @@ import (
 	"github.com/bluenviron/gortsplib/v4/pkg/liberrors"
 	"github.com/google/uuid"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/externalcmd"
 	"github.com/liuhengloveyou/livego/log"
@@ -49,7 +50,6 @@ type rtspServer struct {
 	runOnConnectRestart bool
 	externalCmdPool     *externalcmd.Pool
 	metrics             *Metrics
-	pathManager         *PathManager
 	parent              rtspServerParent
 
 	ctx       context.Context
@@ -83,7 +83,6 @@ func newRTSPServer(
 	runOnConnectRestart bool,
 	externalCmdPool *externalcmd.Pool,
 	metrics *Metrics,
-	pathManager *PathManager,
 	parent rtspServerParent,
 ) (*rtspServer, error) {
 	ctx, ctxCancel := context.WithCancel(context.Background())
@@ -98,7 +97,6 @@ func newRTSPServer(
 		runOnConnectRestart: runOnConnectRestart,
 		externalCmdPool:     externalCmdPool,
 		metrics:             metrics,
-		pathManager:         pathManager,
 		parent:              parent,
 		ctx:                 ctx,
 		ctxCancel:           ctxCancel,
@@ -209,7 +207,6 @@ func (s *rtspServer) OnConnOpen(ctx *gortsplib.ServerHandlerOnConnOpenCtx) {
 		s.runOnConnect,
 		s.runOnConnectRestart,
 		s.externalCmdPool,
-		s.pathManager,
 		ctx.Conn,
 		s)
 	s.mutex.Lock()
@@ -248,7 +245,6 @@ func (s *rtspServer) OnSessionOpen(ctx *gortsplib.ServerHandlerOnSessionOpenCtx)
 		ctx.Session,
 		ctx.Conn,
 		s.externalCmdPool,
-		s.pathManager,
 		s)
 	s.mutex.Lock()
 	s.sessions[ctx.Session] = se
@@ -382,7 +378,7 @@ func (s *rtspServer) apiConnsGet(uuid uuid.UUID) (*apiRTSPConn, error) {
 
 	conn := s.findConnByUUID(uuid)
 	if conn == nil {
-		return nil, ErrAPINotFound
+		return nil, common.ErrAPINotFound
 	}
 
 	return conn.apiItem(), nil
@@ -427,7 +423,7 @@ func (s *rtspServer) apiSessionsGet(uuid uuid.UUID) (*apiRTSPSession, error) {
 
 	_, sx := s.findSessionByUUID(uuid)
 	if sx == nil {
-		return nil, ErrAPINotFound
+		return nil, common.ErrAPINotFound
 	}
 
 	return sx.apiItem(), nil
@@ -446,7 +442,7 @@ func (s *rtspServer) apiSessionsKick(uuid uuid.UUID) error {
 
 	key, sx := s.findSessionByUUID(uuid)
 	if sx == nil {
-		return ErrAPINotFound
+		return common.ErrAPINotFound
 	}
 
 	sx.close()

@@ -294,6 +294,7 @@ func (pa *Path) safeConf() *conf.PathConf {
 func (pa *Path) run() {
 	defer close(pa.done)
 	defer pa.wg.Done()
+	fmt.Println("@@@@@@Path.run", pa.conf.HasStaticSource(), pa.conf.SourceOnDemand)
 
 	if pa.conf.Source == "redirect" {
 		pa.source = &SourceRedirect{}
@@ -507,6 +508,7 @@ func (pa *Path) doReloadConf(newConf *conf.PathConf) {
 }
 
 func (pa *Path) doSourceStaticSetReady(req PathSourceStaticSetReadyReq) {
+	fmt.Println("@@@@@@Path) doSourceStaticSetReady")
 	err := pa.setReady(req.Desc, req.GenerateRTPPackets)
 	if err != nil {
 		req.Res <- PathSourceStaticSetReadyRes{err: err}
@@ -1042,6 +1044,7 @@ func (pa *Path) stopPublisher(req PathStopPublisherReq) {
 
 // addReader is called by a reader through PathManager.
 func (pa *Path) addReader(req PathAddReaderReq) PathAddReaderRes {
+	log.Logger.Info("path.addReader", "req", req)
 	select {
 	case pa.chAddReader <- req:
 		return <-req.Res

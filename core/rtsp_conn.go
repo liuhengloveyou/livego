@@ -32,7 +32,6 @@ type rtspConn struct {
 	runOnConnect        string
 	runOnConnectRestart bool
 	externalCmdPool     *externalcmd.Pool
-	pathManager         *PathManager
 	conn                *gortsplib.ServerConn
 	parent              rtspConnParent
 
@@ -50,7 +49,6 @@ func newRTSPConn(
 	runOnConnect string,
 	runOnConnectRestart bool,
 	externalCmdPool *externalcmd.Pool,
-	pathManager *PathManager,
 	conn *gortsplib.ServerConn,
 	parent rtspConnParent,
 ) *rtspConn {
@@ -61,7 +59,6 @@ func newRTSPConn(
 		runOnConnect:        runOnConnect,
 		runOnConnectRestart: runOnConnectRestart,
 		externalCmdPool:     externalCmdPool,
-		pathManager:         pathManager,
 		conn:                conn,
 		parent:              parent,
 		uuid:                uuid.New(),
@@ -143,7 +140,7 @@ func (c *rtspConn) onDescribe(ctx *gortsplib.ServerHandlerOnDescribeCtx,
 		}
 	}
 
-	res := c.pathManager.describe(PathDescribeReq{
+	res := DefaultPathManager.describe(PathDescribeReq{
 		PathName: ctx.Path,
 		url:      ctx.Request.URL,
 		credentials: AuthCredentials{

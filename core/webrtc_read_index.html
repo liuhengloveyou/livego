@@ -94,33 +94,34 @@ const generateSdpFragment = (offerData, candidates) => {
     return frag;
 }
 
-function printStat() {
-    setTimeout(printStat, 1000)
+// function printStat() {
+//     setTimeout(printStat, 1000)
 
-    console.log(">>>printStat", document.cli)
-    if (!document.cli || !document.cli.pc) {
-        return
-    }
+//     console.log(">>>printStat", document.cli)
+//     if (!document.cli || !document.cli.pc) {
+//         return
+//     }
     
-    let selector = document.cli.pc.getRemoteStreams()[0].getVideoTracks()[0];
+//     let selector = document.cli.pc.getRemoteStreams()[0].getVideoTracks()[0];
     
 
-    document.cli.pc.getStats(selector).then(function(stats) {
-                for (let stat of stats.values()) {
-                    console.log(">>>printStat.selector", stat.type)
-                    if (stat.type === "outbound-rtp") {
-                        console.log(stat.lastPacketReceivedTimestamp);
-                    }
-                }
-    });
+//     document.cli.pc.getStats(selector).then(function(stats) {
+//                 for (let stat of stats.values()) {
+//                     console.log(">>>printStat.selector", stat.type)
+//                     if (stat.type === "outbound-rtp") {
+//                         console.log(stat.lastPacketReceivedTimestamp);
+//                     }
+//                 }
+//     });
 
    
-}
+// }
 
 class WHEPClient {
 	constructor(video) {
 		this.video = video;
 		this.pc = null;
+        this.dataChannel = null;
 		this.restartTimeout = null;
         this.eTag = '';
         this.queuedCandidates = [];
@@ -129,10 +130,6 @@ class WHEPClient {
 
 	start() {
 		console.log("requesting ICE servers");
-
-        setInterval(() => {
-            this.printStat
-        },  1000)
 
         fetch(new URL('whep', window.location.href) + window.location.search, {
             method: 'OPTIONS',
@@ -146,14 +143,13 @@ class WHEPClient {
     
     }
 
-
-
     onIceServers(res) {
         this.pc = new RTCPeerConnection({
             iceServers: linkToIceServers(res.headers.get('Link')),
         });
 
-       
+        // this.dataChannel = this.pc.createDataChannel("datachan");
+        // this.dataChannel.onmessage = (e) => this.onDataChannelMessage(evt);
 
         const direction = "sendrecv";
         this.pc.addTransceiver("video", { direction });
@@ -171,6 +167,10 @@ class WHEPClient {
             .then((offer) => this.onLocalOffer(offer));
     }
 
+    onDataChannelMessage(e) {
+        console.log("onDataChannelMessage:::", e)
+    }
+
     onLocalOffer(offer) {
         this.offerData = parseOffer(offer.sdp);
         this.pc.setLocalDescription(offer);
@@ -183,8 +183,7 @@ class WHEPClient {
                 'Content-Type': 'application/sdp',
             },
             body: offer.sdp,
-        })
-            .then((res) => {
+        }).then((res) => {
                 if (res.status !== 201) {
                     throw new Error('bad status code');
                 }
@@ -219,6 +218,7 @@ class WHEPClient {
             return;
         }
 
+        console.log("onRemoteAnswer", answer)
 		this.pc.setRemoteDescription(new RTCSessionDescription(answer));
 
         if (this.queuedCandidates.length !== 0) {
@@ -369,8 +369,6 @@ const initVideoElement = (callback, container) => {
 
 window.addEventListener('DOMContentLoaded', initVideoElement(function(video){
     document.cli = new WHEPClient(video);
-   
-    setTimeout(printStat, 1000)
 } , document.body) );
 
 </script>

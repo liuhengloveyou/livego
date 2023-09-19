@@ -170,17 +170,11 @@ func webrtcGatherIncomingTracks(
 	}
 }
 
-type webRTCSessionPathManager interface {
-	addPublisher(req PathAddPublisherReq) PathAddPublisherRes
-	addReader(req PathAddReaderReq) PathAddReaderRes
-}
-
 type webRTCSession struct {
 	writeQueueSize int
 	api            *webrtc.API
 	req            webRTCNewSessionReq
 	wg             *sync.WaitGroup
-	pathManager    webRTCSessionPathManager
 	parent         *WebRTCManager
 
 	ctx       context.Context
@@ -190,6 +184,7 @@ type webRTCSession struct {
 	secret    uuid.UUID
 	mutex     sync.RWMutex
 	pc        *webrtcpc.PeerConnection
+	datachan  *webrtc.DataChannel
 
 	chNew           chan webRTCNewSessionReq
 	chAddCandidates chan webRTCAddSessionCandidatesReq
@@ -201,7 +196,6 @@ func newWebRTCSession(
 	api *webrtc.API,
 	req webRTCNewSessionReq,
 	wg *sync.WaitGroup,
-	pathManager webRTCSessionPathManager,
 	parent *WebRTCManager,
 ) *webRTCSession {
 	ctx, ctxCancel := context.WithCancel(parentCtx)
@@ -212,7 +206,6 @@ func newWebRTCSession(
 		req:             req,
 		wg:              wg,
 		parent:          parent,
-		pathManager:     pathManager,
 		ctx:             ctx,
 		ctxCancel:       ctxCancel,
 		created:         time.Now(),
@@ -264,16 +257,18 @@ func (s *webRTCSession) runInner() error {
 }
 
 func (s *webRTCSession) runInner2() (int, error) {
+	log.Logger.Info("webRTCSession.runInner2", "req", s.req.publish)
 	if s.req.publish {
 		return s.runPublish()
+	} else {
+		return s.runRead()
 	}
-	return s.runRead()
 }
 
 func (s *webRTCSession) runPublish() (int, error) {
 	ip, _, _ := net.SplitHostPort(s.req.remoteAddr)
 
-	res := s.pathManager.addPublisher(PathAddPublisherReq{
+	res := DefaultPathManager.addPublisher(PathAddPublisherReq{
 		Author:   s,
 		PathName: s.req.pathName,
 		Credentials: AuthCredentials{
@@ -412,8 +407,9 @@ func (s *webRTCSession) runPublish() (int, error) {
 
 func (s *webRTCSession) runRead() (int, error) {
 	ip, _, _ := net.SplitHostPort(s.req.remoteAddr)
+	log.Logger.Info("webRTCSession.runRead")
 
-	res := s.pathManager.addReader(PathAddReaderReq{
+	res := DefaultPathManager.addReader(PathAddReaderReq{
 		Author:   s,
 		PathName: s.req.pathName,
 		Credentials: AuthCredentials{
@@ -627,4 +623,8 @@ func (s *webRTCSession) apiItem() *ApiWebRTCSession {
 		BytesReceived: bytesReceived,
 		BytesSent:     bytesSent,
 	}
+}
+
+func (s *webRTCSession) WriteDataChannel() {
+
 }

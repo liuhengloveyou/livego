@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/bluenviron/gortsplib/v4/pkg/description"
@@ -18,6 +19,10 @@ import (
 	"github.com/liuhengloveyou/livego/unit"
 )
 
+var (
+	ntpEpoch = time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
+)
+
 type webRTCOutgoingTrack struct {
 	SSRC    uint32
 	LastPTS time.Duration
@@ -27,6 +32,11 @@ type webRTCOutgoingTrack struct {
 	format format.Format
 	track  *webrtc.TrackLocalStaticRTP
 	cb     func(unit.Unit) error
+
+	// Report helpers
+	octetCount  uint32
+	packetCount uint32
+	maxPacketTs uint32
 }
 
 func newWebRTCOutgoingTrackVideo(desc *description.Session) (*webRTCOutgoingTrack, error) {
@@ -234,7 +244,6 @@ func newWebRTCOutgoingTrackVideo(desc *description.Session) (*webRTCOutgoingTrac
 				if tunit.PTS < outTrack.LastPTS {
 					return fmt.Errorf("WebRTC doesn't support H264 streams with B-frames")
 				}
-
 			}
 
 			packets, err := encoder.Encode(tunit.AU)
@@ -246,6 +255,9 @@ func newWebRTCOutgoingTrackVideo(desc *description.Session) (*webRTCOutgoingTrac
 				pkt.Timestamp = tunit.RTPPackets[0].Timestamp
 				webRTCTrak.WriteRTP(pkt) //nolint:errcheck
 
+				outTrack.UpdateStats(uint32(len(pkt.Payload)))
+
+				fmt.Println(">>>", pkt)
 			}
 
 			return nil
@@ -255,6 +267,17 @@ func newWebRTCOutgoingTrackVideo(desc *description.Session) (*webRTCOutgoingTrac
 	}
 
 	return nil, nil
+}
+
+func (d *webRTCOutgoingTrack) UpdateStats(packetLen uint32) {
+	atomic.AddUint32(&d.octetCount, packetLen)
+	atomic.AddUint32(&d.packetCount, 1)
+}
+
+func (d *webRTCOutgoingTrack) getSRStats() (octets, packets uint32) {
+	octets = atomic.LoadUint32(&d.octetCount)
+	packets = atomic.LoadUint32(&d.packetCount)
+	return
 }
 
 func newWebRTCOutgoingTrackAudio(desc *description.Session) (*webRTCOutgoingTrack, error) {
@@ -363,65 +386,60 @@ func (t *webRTCOutgoingTrack) start(
 	stream *stream.Stream,
 	writer *asyncwriter.Writer,
 ) {
+
+	// for {
+	// 	// Read the RTCP packets as they become available for our new remote track
+	// 	rtcpPackets, _, rtcpErr := receiver.ReadRTCP()
+	// 	if rtcpErr != nil {
+	// 		panic(rtcpErr)
+	// 	}
+
+	// 	for _, r := range rtcpPackets {
+	// 		// Print a string description of the packets
+	// 		if stringer, canString := r.(fmt.Stringer); canString {
+	// 			fmt.Printf("Received RTCP Packet: %v", stringer.String())
+	// 		}
+	// 	}
+	// }
+
 	// read incoming RTCP packets to make interceptors work
 	go func() {
-		buf := make([]byte, 1500)
 		for {
-			_, _, err := t.sender.Read(buf)
+			pkts, _, err := t.sender.ReadRTCP()
+			for _, pkt := range pkts {
+				if _, ok := pkt.(*rtcp.ReceiverReport); ok {
+					fmt.Println("@@@@@@@@@@@@", pkt, err)
+				}
 
-			if err != nil {
-				return
 			}
-		}
-	}()
-
-	go func() {
-		for {
-			time.Sleep(time.Second)
-
-			if t.SSRC <= 0 {
-				continue
-			}
-
-			n, err := t.sender.Transport().WriteRTCP([]rtcp.Packet{
-				&rtcp.SenderReport{
-					SSRC:        t.SSRC,
-					NTPTime:     uint64(time.Now().UnixMilli()),
-					RTPTime:     uint32(t.LastPTS),
-					PacketCount: 100,
-					OctetCount:  100,
-				},
-			})
-			fmt.Println("sr>>>>>>", t.SSRC, t.LastPTS, n, err)
 		}
 	}()
 
 	stream.AddReader(writer, t.media, t.format, t.cb)
 }
 
-// func (d *DownTrack) CreateSenderReport() *rtcp.SenderReport {
-// 	if !d.bound.get() {
-// 		return nil
-// 	}
-// 	srRTP, srNTP := d.receiver.GetSenderReportTime(int(atomic.LoadInt32(&d.currentSpatialLayer)))
-// 	if srRTP == 0 {
-// 		return nil
-// 	}
+func (d *webRTCOutgoingTrack) CreateSenderReport() *rtcp.SenderReport {
+	now := time.Now()
+	nowNTP := toNtpTime(now)
 
-// 	now := time.Now()
-// 	nowNTP := toNtpTime(now)
+	octets, packets := d.getSRStats()
 
-// 	diff := (uint64(now.Sub(ntpTime(srNTP).Time())) * uint64(d.codec.ClockRate)) / uint64(time.Second)
-// 	if diff < 0 {
-// 		diff = 0
-// 	}
-// 	octets, packets := d.getSRStats()
+	return &rtcp.SenderReport{
+		SSRC:        d.SSRC,
+		NTPTime:     nowNTP,
+		RTPTime:     uint32(d.LastPTS),
+		PacketCount: packets,
+		OctetCount:  octets,
+	}
+}
 
-// 	return &rtcp.SenderReport{
-// 		SSRC:        d.ssrc,
-// 		NTPTime:     uint64(nowNTP),
-// 		RTPTime:     srRTP + uint32(diff),
-// 		PacketCount: packets,
-// 		OctetCount:  octets,
-// 	}
-// }
+func toNtpTime(t time.Time) uint64 {
+	nsec := uint64(t.Sub(ntpEpoch))
+	sec := nsec / 1e9
+	nsec = (nsec - sec*1e9) << 32
+	frac := nsec / 1e9
+	if nsec%1e9 >= 1e9/2 {
+		frac++
+	}
+	return sec<<32 | frac
+}

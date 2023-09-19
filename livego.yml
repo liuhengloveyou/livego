@@ -1,12 +1,10 @@
 
 ###############################################
-# General settings
-
+# General settings 
 readTimeout: 10s
 writeTimeout: 10s
 writeQueueSize: 512
 udpMaxPayloadSize: 1472
-
 # HTTP URL to perform external authentication.
 # Every time a user wants to authenticate, the server calls this URL
 # with the POST method and a body containing:
@@ -91,30 +89,12 @@ webrtcServerKey: server.key
 webrtcServerCert: server.crt
 webrtcAllowOrigin: '*'
 webrtcTrustedProxies: []
-# List of ICE servers.
 webrtcICEServers2:
-  # URL can point to a STUN, TURN or TURNS server.
-  # STUN servers are used to obtain the public IP of server and clients. They are
-  # needed when server and clients are on different LANs.
-  # TURN/TURNS servers are needed when a direct connection between server and
-  # clients is not possible. All traffic is routed through them.
 - url: stun:stun.l.google.com:19302
-  # if user is "AUTH_SECRET", then authentication is secret based.
-  # the secret must be inserted into the password field.
   username: ''
   password: ''
-# List of public IP addresses that are to be used as a host.
-# This is used typically for servers that are behind 1:1 D-NAT.
 webrtcICEHostNAT1To1IPs: []
-# Address of a ICE UDP listener in format host:port.
-# If filled, ICE traffic will pass through a single UDP port,
-# allowing the deployment of the server inside a container or behind a NAT.
 webrtcICEUDPMuxAddress:
-# Address of a ICE TCP listener in format host:port.
-# If filled, ICE traffic will pass through a single TCP port,
-# allowing the deployment of the server inside a container or behind a NAT.
-# Using this setting forces usage of the TCP protocol, which is not
-# optimal for WebRTC.
 webrtcICETCPMuxAddress:
 
 ###############################################
@@ -125,8 +105,13 @@ srtAddress: :8890
 ###############################################
 # Path settings
 paths:
-  camera1:
-    source: rtsp://admin:Abc123456@192.168.100.234:554/Streaming/Channels/101
+  # camera1:
+  #   source: rtsp://admin:Abc123456@192.168.100.234:554/Streaming/Channels/101
+  dahua:
+    source: rtsp://admin:admin123@192.168.100.234:554/cam/realmonitor?channel=1&subtype=0
+    sourceOnDemand: no
+  # dahua1:
+  #   source: rtsp://admin:admin123@192.168.168.101:554/cam/realmonitor?channel=1&subtype=0
   all:
     ###############################################
     # General path settings

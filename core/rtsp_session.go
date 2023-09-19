@@ -19,11 +19,6 @@ import (
 	"github.com/liuhengloveyou/livego/stream"
 )
 
-type rtspSessionPathManager interface {
-	addPublisher(req PathAddPublisherReq) PathAddPublisherRes
-	addReader(req PathAddReaderReq) PathAddReaderRes
-}
-
 type rtspSessionParent interface {
 	getISTLS() bool
 	getServer() *gortsplib.Server
@@ -35,7 +30,6 @@ type rtspSession struct {
 	session         *gortsplib.ServerSession
 	author          *gortsplib.ServerConn
 	externalCmdPool *externalcmd.Pool
-	pathManager     rtspSessionPathManager
 	parent          rtspSessionParent
 
 	uuid      uuid.UUID
@@ -55,7 +49,6 @@ func newRTSPSession(
 	session *gortsplib.ServerSession,
 	sc *gortsplib.ServerConn,
 	externalCmdPool *externalcmd.Pool,
-	pathManager rtspSessionPathManager,
 	parent rtspSessionParent,
 ) *rtspSession {
 	s := &rtspSession{
@@ -64,7 +57,6 @@ func newRTSPSession(
 		session:         session,
 		author:          sc,
 		externalCmdPool: externalCmdPool,
-		pathManager:     pathManager,
 		parent:          parent,
 		uuid:            uuid.New(),
 		created:         time.Now(),
@@ -127,7 +119,7 @@ func (s *rtspSession) onAnnounce(c *rtspConn, ctx *gortsplib.ServerHandlerOnAnno
 		}
 	}
 
-	res := s.pathManager.addPublisher(PathAddPublisherReq{
+	res := DefaultPathManager.addPublisher(PathAddPublisherReq{
 		Author:   s,
 		PathName: ctx.Path,
 		Credentials: AuthCredentials{
@@ -212,7 +204,7 @@ func (s *rtspSession) onSetup(c *rtspConn, ctx *gortsplib.ServerHandlerOnSetupCt
 			}
 		}
 
-		res := s.pathManager.addReader(PathAddReaderReq{
+		res := DefaultPathManager.addReader(PathAddReaderReq{
 			Author:   s,
 			PathName: ctx.Path,
 			Credentials: AuthCredentials{

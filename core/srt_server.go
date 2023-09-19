@@ -10,6 +10,7 @@ import (
 	srt "github.com/datarhei/gosrt"
 	"github.com/google/uuid"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/externalcmd"
 	"github.com/liuhengloveyou/livego/log"
@@ -82,7 +83,6 @@ func newSRTServer(
 	writeQueueSize int,
 	udpMaxPayloadSize int,
 	externalCmdPool *externalcmd.Pool,
-	pathManager *PathManager,
 ) (*srtServer, error) {
 	conf := srt.DefaultConfig()
 	conf.ConnectionTimeout = time.Duration(readTimeout)
@@ -101,7 +101,6 @@ func newSRTServer(
 		writeQueueSize:    writeQueueSize,
 		udpMaxPayloadSize: udpMaxPayloadSize,
 		externalCmdPool:   externalCmdPool,
-		pathManager:       pathManager,
 		ctx:               ctx,
 		ctxCancel:         ctxCancel,
 		ln:                ln,
@@ -178,7 +177,7 @@ outer:
 		case req := <-s.chAPIConnsGet:
 			c := s.findConnByUUID(req.uuid)
 			if c == nil {
-				req.res <- srtServerAPIConnsGetRes{err: ErrAPINotFound}
+				req.res <- srtServerAPIConnsGetRes{err: common.ErrAPINotFound}
 				continue
 			}
 
@@ -187,7 +186,7 @@ outer:
 		case req := <-s.chAPIConnsKick:
 			c := s.findConnByUUID(req.uuid)
 			if c == nil {
-				req.res <- srtServerAPIConnsKickRes{err: ErrAPINotFound}
+				req.res <- srtServerAPIConnsKickRes{err: common.ErrAPINotFound}
 				continue
 			}
 

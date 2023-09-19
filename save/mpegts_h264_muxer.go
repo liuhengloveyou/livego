@@ -14,7 +14,7 @@ func durationGoToMPEGTS(v time.Duration) int64 {
 }
 
 // mpegtsMuxer allows to save a H264 stream into a MPEG-TS file.
-type mpegtsMuxer struct {
+type MpegtsMuxer struct {
 	sps []byte
 	pps []byte
 
@@ -26,8 +26,8 @@ type mpegtsMuxer struct {
 }
 
 // newMPEGTSMuxer allocates a mpegtsMuxer.
-func newMPEGTSMuxer(sps []byte, pps []byte) (*mpegtsMuxer, error) {
-	f, err := os.Create("mystream.ts")
+func NewMPEGTSMuxer(name string, sps []byte, pps []byte) (*MpegtsMuxer, error) {
+	f, err := os.Create(name)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +39,7 @@ func newMPEGTSMuxer(sps []byte, pps []byte) (*mpegtsMuxer, error) {
 
 	w := mpegts.NewWriter(b, []*mpegts.Track{track})
 
-	return &mpegtsMuxer{
+	return &MpegtsMuxer{
 		sps:   sps,
 		pps:   pps,
 		f:     f,
@@ -50,13 +50,13 @@ func newMPEGTSMuxer(sps []byte, pps []byte) (*mpegtsMuxer, error) {
 }
 
 // close closes all the mpegtsMuxer resources.
-func (e *mpegtsMuxer) close() {
+func (e *MpegtsMuxer) Close() {
 	e.b.Flush()
 	e.f.Close()
 }
 
 // encode encodes a H264 access unit into MPEG-TS.
-func (e *mpegtsMuxer) encode(au [][]byte, pts time.Duration) error {
+func (e *MpegtsMuxer) Encode(au [][]byte, pts time.Duration) error {
 	// prepend an AUD. This is required by some players
 	filteredAU := [][]byte{
 		{byte(h264.NALUTypeAccessUnitDelimiter), 240},

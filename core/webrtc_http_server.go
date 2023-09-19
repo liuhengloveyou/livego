@@ -33,7 +33,6 @@ type webRTCHTTPServerParent interface {
 
 type webRTCHTTPServer struct {
 	allowOrigin string
-	pathManager *PathManager
 	parent      webRTCHTTPServerParent
 
 	inner *httpserv.WrappedServer
@@ -47,7 +46,6 @@ func newWebRTCHTTPServer( //nolint:dupl
 	allowOrigin string,
 	trustedProxies conf.IPsOrCIDRs,
 	readTimeout conf.StringDuration,
-	pathManager *PathManager,
 	parent webRTCHTTPServerParent,
 ) (*webRTCHTTPServer, error) {
 	if encryption {
@@ -61,7 +59,6 @@ func newWebRTCHTTPServer( //nolint:dupl
 
 	s := &webRTCHTTPServer{
 		allowOrigin: allowOrigin,
-		pathManager: pathManager,
 		parent:      parent,
 	}
 
@@ -163,7 +160,7 @@ func (s *webRTCHTTPServer) onRequest(ctx *gin.Context) {
 
 	// if request doesn't belong to a session, check authentication here
 	if !isWHIPorWHEP || ctx.Request.Method == http.MethodOptions {
-		res := s.pathManager.getConfForPath(PathGetConfForPathReq{
+		res := DefaultPathManager.getConfForPath(PathGetConfForPathReq{
 			name:    dir,
 			publish: publish,
 			credentials: AuthCredentials{
@@ -195,6 +192,8 @@ func (s *webRTCHTTPServer) onRequest(ctx *gin.Context) {
 			return
 		}
 	}
+
+	log.Logger.Info("", "dir", dir, "fname", fname, "publish", publish, "method", ctx.Request.Method)
 
 	switch fname {
 	case "":

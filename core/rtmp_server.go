@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/externalcmd"
 	"github.com/liuhengloveyou/livego/log"
@@ -43,9 +44,6 @@ type rtmpServerAPIConnsKickReq struct {
 	res  chan rtmpServerAPIConnsKickRes
 }
 
-type rtmpServerParent interface {
-}
-
 type rtmpServer struct {
 	readTimeout         conf.StringDuration
 	writeTimeout        conf.StringDuration
@@ -56,8 +54,6 @@ type rtmpServer struct {
 	runOnConnectRestart bool
 	externalCmdPool     *externalcmd.Pool
 	metrics             *Metrics
-	pathManager         *PathManager
-	parent              rtmpServerParent
 
 	ctx       context.Context
 	ctxCancel func()
@@ -87,8 +83,6 @@ func newRTMPServer(
 	runOnConnectRestart bool,
 	externalCmdPool *externalcmd.Pool,
 	metrics *Metrics,
-	pathManager *PathManager,
-	parent rtmpServerParent,
 ) (*rtmpServer, error) {
 	ln, err := func() (net.Listener, error) {
 		if !isTLS {
@@ -119,8 +113,6 @@ func newRTMPServer(
 		isTLS:               isTLS,
 		externalCmdPool:     externalCmdPool,
 		metrics:             metrics,
-		pathManager:         pathManager,
-		parent:              parent,
 		ctx:                 ctx,
 		ctxCancel:           ctxCancel,
 		ln:                  ln,
@@ -180,7 +172,6 @@ outer:
 				&s.wg,
 				nconn,
 				s.externalCmdPool,
-				s.pathManager,
 				s)
 			s.conns[c] = struct{}{}
 
@@ -205,7 +196,7 @@ outer:
 		case req := <-s.chAPIConnsGet:
 			c := s.findConnByUUID(req.uuid)
 			if c == nil {
-				req.res <- rtmpServerAPIConnsGetRes{err: ErrAPINotFound}
+				req.res <- rtmpServerAPIConnsGetRes{err: common.ErrAPINotFound}
 				continue
 			}
 
@@ -214,7 +205,7 @@ outer:
 		case req := <-s.chAPIConnsKick:
 			c := s.findConnByUUID(req.uuid)
 			if c == nil {
-				req.res <- rtmpServerAPIConnsKickRes{err: ErrAPINotFound}
+				req.res <- rtmpServerAPIConnsKickRes{err: common.ErrAPINotFound}
 				continue
 			}
 

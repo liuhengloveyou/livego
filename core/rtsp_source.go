@@ -2,11 +2,14 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/bluenviron/gortsplib/v4"
 	"github.com/bluenviron/gortsplib/v4/pkg/base"
+	"github.com/bluenviron/gortsplib/v4/pkg/description"
 	"github.com/bluenviron/gortsplib/v4/pkg/headers"
+	"github.com/pion/rtcp"
 	"github.com/pion/rtp"
 
 	"github.com/bluenviron/gortsplib/v4/pkg/url"
@@ -87,7 +90,7 @@ func newRTSPSource(
 
 // run implements sourceStaticImpl.
 func (s *rtspSource) Run(ctx context.Context, cnf *conf.PathConf, reloadConf chan *conf.PathConf) error {
-	log.Logger.Debug("connecting")
+	log.Logger.Info("rtsp connecting")
 
 	c := &gortsplib.Client{
 		Transport:      cnf.SourceProtocol.Transport,
@@ -115,11 +118,13 @@ func (s *rtspSource) Run(ctx context.Context, cnf *conf.PathConf, reloadConf cha
 
 	u, err := url.Parse(cnf.Source)
 	if err != nil {
+		log.Logger.Error("url.Parse ERR", "err", err)
 		return err
 	}
 
 	err = c.Start(u.Scheme, u.Host)
 	if err != nil {
+		log.Logger.Error("start ERR", "err", err)
 		return err
 	}
 	defer c.Close()
@@ -129,22 +134,27 @@ func (s *rtspSource) Run(ctx context.Context, cnf *conf.PathConf, reloadConf cha
 		readErr <- func() error {
 			desc, _, err := c.Describe(u)
 			if err != nil {
+				log.Logger.Error("rtsp Describe ERR: ", "err", err)
 				return err
 			}
 
 			err = c.SetupAll(desc.BaseURL, desc.Medias)
 			if err != nil {
+				log.Logger.Error("rtsp SetupAll ERR: ", "err", err)
 				return err
 			}
 
+			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!111111111")
 			res := s.parent.SetReady(PathSourceStaticSetReadyReq{
 				Desc:               desc,
 				GenerateRTPPackets: false,
 			})
 			if res.err != nil {
+				log.Logger.Error("rtsp SetReady ERR: ", "err", res.err)
 				return res.err
 			}
 
+			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 			defer s.parent.SetNotReady(PathSourceStaticSetNotReadyReq{})
 
 			for _, medi := range desc.Medias {
@@ -152,7 +162,12 @@ func (s *rtspSource) Run(ctx context.Context, cnf *conf.PathConf, reloadConf cha
 					cmedi := medi
 					cforma := forma
 
+					c.OnPacketRTCPAny(func(medi *description.Media, pkt rtcp.Packet) {
+						fmt.Println("OnPacketRTCPAny>>>>>>", medi, pkt)
+					})
+
 					c.OnPacketRTP(cmedi, cforma, func(pkt *rtp.Packet) {
+						fmt.Println("OnPacketRTP>>>>>>", pkt)
 						pts, ok := c.PacketPTS(cmedi, pkt)
 						if !ok {
 							return

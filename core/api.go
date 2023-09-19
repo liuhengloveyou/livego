@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/httpserv"
 	"github.com/liuhengloveyou/livego/log"
@@ -131,7 +132,7 @@ func paginate(itemsPtr interface{}, itemsPerPageStr string, pageStr string) (int
 }
 
 func abortWithError(ctx *gin.Context, err error) {
-	if err == ErrAPINotFound {
+	if err == common.ErrAPINotFound {
 		ctx.AbortWithStatus(http.StatusNotFound)
 	} else {
 		ctx.AbortWithStatus(http.StatusInternalServerError)
@@ -148,11 +149,6 @@ func paramName(ctx *gin.Context) (string, bool) {
 	return name[1:], true
 }
 
-type apiPathManager interface {
-	apiPathsList() (*apiPathsList, error)
-	apiPathsGet(string) (*apiPath, error)
-}
-
 type apiRTSPServer interface {
 	apiConnsList() (*apiRTSPConnsList, error)
 	apiConnsGet(uuid.UUID) (*apiRTSPConn, error)
@@ -167,11 +163,11 @@ type apiRTMPServer interface {
 	apiConnsKick(uuid.UUID) error
 }
 
-type apiWebRTCManager interface {
-	apiSessionsList() (*ApiWebRTCSessionsList, error)
-	apiSessionsGet(uuid.UUID) (*ApiWebRTCSession, error)
-	apiSessionsKick(uuid.UUID) error
-}
+// type apiWebRTCManager interface {
+// 	apiSessionsList() (*ApiWebRTCSessionsList, error)
+// 	apiSessionsGet(uuid.UUID) (*ApiWebRTCSession, error)
+// 	apiSessionsKick(uuid.UUID) error
+// }
 
 type apiSRTServer interface {
 	apiConnsList() (*apiSRTConnsList, error)
@@ -184,15 +180,13 @@ type apiParent interface {
 }
 
 type api struct {
-	conf          *conf.Conf
-	pathManager   apiPathManager
-	rtspServer    apiRTSPServer
-	rtspsServer   apiRTSPServer
-	rtmpServer    apiRTMPServer
-	rtmpsServer   apiRTMPServer
-	webRTCManager apiWebRTCManager
-	srtServer     apiSRTServer
-	parent        apiParent
+	conf        *conf.Conf
+	rtspServer  apiRTSPServer
+	rtspsServer apiRTSPServer
+	rtmpServer  apiRTMPServer
+	rtmpsServer apiRTMPServer
+	srtServer   apiSRTServer
+	parent      apiParent
 
 	httpServer *httpserv.WrappedServer
 	mutex      sync.Mutex
@@ -202,25 +196,21 @@ func newAPI(
 	address string,
 	readTimeout conf.StringDuration,
 	conf *conf.Conf,
-	pathManager apiPathManager,
 	rtspServer apiRTSPServer,
 	rtspsServer apiRTSPServer,
 	rtmpServer apiRTMPServer,
 	rtmpsServer apiRTMPServer,
-	webRTCManager apiWebRTCManager,
 	srtServer apiSRTServer,
 	parent apiParent,
 ) (*api, error) {
 	a := &api{
-		conf:          conf,
-		pathManager:   pathManager,
-		rtspServer:    rtspServer,
-		rtspsServer:   rtspsServer,
-		rtmpServer:    rtmpServer,
-		rtmpsServer:   rtmpsServer,
-		webRTCManager: webRTCManager,
-		srtServer:     srtServer,
-		parent:        parent,
+		conf:        conf,
+		rtspServer:  rtspServer,
+		rtspsServer: rtspsServer,
+		rtmpServer:  rtmpServer,
+		rtmpsServer: rtmpsServer,
+		srtServer:   srtServer,
+		parent:      parent,
 	}
 
 	router := gin.New()
@@ -265,11 +255,11 @@ func newAPI(
 		group.POST("/v2/rtmpsconns/kick/:id", a.onRTMPSConnsKick)
 	}
 
-	if !interfaceIsEmpty(a.webRTCManager) {
-		group.GET("/v2/webrtcsessions/list", a.onWebRTCSessionsList)
-		group.GET("/v2/webrtcsessions/get/:id", a.onWebRTCSessionsGet)
-		group.POST("/v2/webrtcsessions/kick/:id", a.onWebRTCSessionsKick)
-	}
+	// if !interfaceIsEmpty(a.webRTCManager) {
+	// 	group.GET("/v2/webrtcsessions/list", a.onWebRTCSessionsList)
+	// 	group.GET("/v2/webrtcsessions/get/:id", a.onWebRTCSessionsGet)
+	// 	group.POST("/v2/webrtcsessions/kick/:id", a.onWebRTCSessionsKick)
+	// }
 
 	if !interfaceIsEmpty(a.srtServer) {
 		group.GET("/v2/srtconns/list", a.onSRTConnsList)
@@ -461,7 +451,7 @@ func (a *api) onConfigPathsDelete(ctx *gin.Context) {
 }
 
 func (a *api) onPathsList(ctx *gin.Context) {
-	data, err := a.pathManager.apiPathsList()
+	data, err := DefaultPathManager.apiPathsList()
 	if err != nil {
 		ctx.AbortWithStatus(http.StatusInternalServerError)
 		return
@@ -485,7 +475,7 @@ func (a *api) onPathsGet(ctx *gin.Context) {
 		return
 	}
 
-	data, err := a.pathManager.apiPathsGet(name)
+	data, err := DefaultPathManager.apiPathsGet(name)
 	if err != nil {
 		abortWithError(ctx, err)
 		return
@@ -763,7 +753,7 @@ func (a *api) onRTMPSConnsKick(ctx *gin.Context) {
 }
 
 func (a *api) onWebRTCSessionsList(ctx *gin.Context) {
-	data, err := a.webRTCManager.apiSessionsList()
+	data, err := DefaultWebRTCManager.apiSessionsList()
 	if err != nil {
 		ctx.AbortWithStatus(http.StatusInternalServerError)
 		return
@@ -787,7 +777,7 @@ func (a *api) onWebRTCSessionsGet(ctx *gin.Context) {
 		return
 	}
 
-	data, err := a.webRTCManager.apiSessionsGet(uuid)
+	data, err := DefaultWebRTCManager.apiSessionsGet(uuid)
 	if err != nil {
 		abortWithError(ctx, err)
 		return
@@ -803,7 +793,7 @@ func (a *api) onWebRTCSessionsKick(ctx *gin.Context) {
 		return
 	}
 
-	err = a.webRTCManager.apiSessionsKick(uuid)
+	err = DefaultWebRTCManager.apiSessionsKick(uuid)
 	if err != nil {
 		abortWithError(ctx, err)
 		return

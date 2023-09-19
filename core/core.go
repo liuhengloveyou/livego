@@ -26,12 +26,10 @@ type Core struct {
 	externalCmdPool *externalcmd.Pool
 	metrics         *Metrics
 	pprof           *pprof
-	pathManager     *PathManager
 	rtspServer      *rtspServer
 	rtspsServer     *rtspServer
 	rtmpServer      *rtmpServer
 	rtmpsServer     *rtmpServer
-	webRTCManager   *WebRTCManager
 	srtServer       *srtServer
 	api             *api
 
@@ -156,8 +154,7 @@ func (p *Core) createResources(initial bool) error {
 		p.externalCmdPool = externalcmd.NewPool()
 	}
 
-	if p.conf.Metrics &&
-		p.metrics == nil {
+	if p.conf.Metrics && p.metrics == nil {
 		p.metrics, err = newMetrics(
 			p.conf.MetricsAddress,
 			p.conf.ReadTimeout,
@@ -168,8 +165,7 @@ func (p *Core) createResources(initial bool) error {
 		}
 	}
 
-	if p.conf.PPROF &&
-		p.pprof == nil {
+	if p.conf.PPROF && p.pprof == nil {
 		p.pprof, err = newPPROF(
 			p.conf.PPROFAddress,
 			p.conf.ReadTimeout,
@@ -180,8 +176,8 @@ func (p *Core) createResources(initial bool) error {
 		}
 	}
 
-	if p.pathManager == nil {
-		p.pathManager = NewPathManager(
+	if DefaultPathManager == nil {
+		InitPathManager(
 			p.conf.ExternalAuthenticationURL,
 			p.conf.RTSPAddress,
 			p.conf.AuthMethods,
@@ -195,10 +191,7 @@ func (p *Core) createResources(initial bool) error {
 		)
 	}
 
-	if p.conf.RTSP &&
-		(p.conf.Encryption == conf.EncryptionNo ||
-			p.conf.Encryption == conf.EncryptionOptional) &&
-		p.rtspServer == nil {
+	if p.conf.RTSP && (p.conf.Encryption == conf.EncryptionNo || p.conf.Encryption == conf.EncryptionOptional) && p.rtspServer == nil {
 		_, useUDP := p.conf.Protocols[conf.Protocol(gortsplib.TransportUDP)]
 		_, useMulticast := p.conf.Protocols[conf.Protocol(gortsplib.TransportUDPMulticast)]
 
@@ -224,7 +217,6 @@ func (p *Core) createResources(initial bool) error {
 			p.conf.RunOnConnectRestart,
 			p.externalCmdPool,
 			p.metrics,
-			p.pathManager,
 			p,
 		)
 		if err != nil {
@@ -258,7 +250,6 @@ func (p *Core) createResources(initial bool) error {
 			p.conf.RunOnConnectRestart,
 			p.externalCmdPool,
 			p.metrics,
-			p.pathManager,
 			p,
 		)
 		if err != nil {
@@ -266,9 +257,7 @@ func (p *Core) createResources(initial bool) error {
 		}
 	}
 
-	if p.conf.RTMP &&
-		(p.conf.RTMPEncryption == conf.EncryptionNo ||
-			p.conf.RTMPEncryption == conf.EncryptionOptional) &&
+	if p.conf.RTMP && (p.conf.RTMPEncryption == conf.EncryptionNo || p.conf.RTMPEncryption == conf.EncryptionOptional) &&
 		p.rtmpServer == nil {
 		p.rtmpServer, err = newRTMPServer(
 			p.conf.RTMPAddress,
@@ -283,8 +272,6 @@ func (p *Core) createResources(initial bool) error {
 			p.conf.RunOnConnectRestart,
 			p.externalCmdPool,
 			p.metrics,
-			p.pathManager,
-			p,
 		)
 		if err != nil {
 			return err
@@ -308,16 +295,14 @@ func (p *Core) createResources(initial bool) error {
 			p.conf.RunOnConnectRestart,
 			p.externalCmdPool,
 			p.metrics,
-			p.pathManager,
-			p,
 		)
 		if err != nil {
 			return err
 		}
 	}
 
-	if p.conf.WebRTC && p.webRTCManager == nil {
-		if p.webRTCManager, err = NewWebRTCManager(
+	if p.conf.WebRTC {
+		if err = InitWebRTCManager(
 			p.conf.WebRTCAddress,
 			p.conf.WebRTCEncryption,
 			p.conf.WebRTCServerKey,
@@ -330,15 +315,13 @@ func (p *Core) createResources(initial bool) error {
 			p.conf.WebRTCICEHostNAT1To1IPs,
 			p.conf.WebRTCICEUDPMuxAddress,
 			p.conf.WebRTCICETCPMuxAddress,
-			p.pathManager,
 			p.metrics,
 		); err != nil {
 			return err
 		}
 	}
 
-	if p.conf.SRT &&
-		p.srtServer == nil {
+	if p.conf.SRT && p.srtServer == nil {
 		p.srtServer, err = newSRTServer(
 			p.conf.SRTAddress,
 			p.conf.ReadTimeout,
@@ -346,25 +329,21 @@ func (p *Core) createResources(initial bool) error {
 			p.conf.WriteQueueSize,
 			p.conf.UDPMaxPayloadSize,
 			p.externalCmdPool,
-			p.pathManager,
 		)
 		if err != nil {
 			return err
 		}
 	}
 
-	if p.conf.API &&
-		p.api == nil {
+	if p.conf.API && p.api == nil {
 		p.api, err = newAPI(
 			p.conf.APIAddress,
 			p.conf.ReadTimeout,
 			p.conf,
-			p.pathManager,
 			p.rtspServer,
 			p.rtspsServer,
 			p.rtmpServer,
 			p.rtmpsServer,
-			p.webRTCManager,
 			p.srtServer,
 			p,
 		)
@@ -404,7 +383,7 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		newConf.UDPMaxPayloadSize != p.conf.UDPMaxPayloadSize ||
 		closeMetrics
 	if !closePathManager && !reflect.DeepEqual(newConf.Paths, p.conf.Paths) {
-		p.pathManager.confReload(newConf.Paths)
+		// DefaultPathManager.confReload(newConf.Paths)
 	}
 
 	closeRTSPServer := newConf == nil ||
@@ -529,10 +508,10 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		p.srtServer = nil
 	}
 
-	if closeWebRTCManager && p.webRTCManager != nil {
-		p.webRTCManager.close()
-		p.webRTCManager = nil
-	}
+	// if closeWebRTCManager && p.webRTCManager != nil {
+	// 	p.webRTCManager.close()
+	// 	p.webRTCManager = nil
+	// }
 
 	if closeRTMPSServer && p.rtmpsServer != nil {
 		p.rtmpsServer.close()
@@ -554,9 +533,9 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		p.rtspServer = nil
 	}
 
-	if closePathManager && p.pathManager != nil {
-		p.pathManager.close()
-		p.pathManager = nil
+	if closePathManager && DefaultPathManager != nil {
+		DefaultPathManager.close()
+		DefaultPathManager = nil
 	}
 
 	if closePPROF && p.pprof != nil {

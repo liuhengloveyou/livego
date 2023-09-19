@@ -45,10 +45,10 @@ const (
 	rtmpConnStatePublish
 )
 
-type rtmpConnPathManager interface {
-	addReader(req PathAddReaderReq) PathAddReaderRes
-	addPublisher(req PathAddPublisherReq) PathAddPublisherRes
-}
+// type rtmpConnPathManager interface {
+// 	addReader(req PathAddReaderReq) PathAddReaderRes
+// 	addPublisher(req PathAddPublisherReq) PathAddPublisherRes
+// }
 
 type rtmpConnParent interface {
 	closeConn(*rtmpConn)
@@ -65,7 +65,6 @@ type rtmpConn struct {
 	wg                  *sync.WaitGroup
 	nconn               net.Conn
 	externalCmdPool     *externalcmd.Pool
-	pathManager         rtmpConnPathManager
 	parent              rtmpConnParent
 
 	ctx       context.Context
@@ -90,7 +89,6 @@ func newRTMPConn(
 	wg *sync.WaitGroup,
 	nconn net.Conn,
 	externalCmdPool *externalcmd.Pool,
-	pathManager rtmpConnPathManager,
 	parent rtmpConnParent,
 ) *rtmpConn {
 	ctx, ctxCancel := context.WithCancel(parentCtx)
@@ -106,7 +104,6 @@ func newRTMPConn(
 		wg:                  wg,
 		nconn:               nconn,
 		externalCmdPool:     externalCmdPool,
-		pathManager:         pathManager,
 		parent:              parent,
 		ctx:                 ctx,
 		ctxCancel:           ctxCancel,
@@ -207,7 +204,7 @@ func (c *rtmpConn) runReader() error {
 func (c *rtmpConn) runRead(conn *rtmp.Conn, u *url.URL) error {
 	pathName, query, rawQuery := pathNameAndQuery(u)
 
-	res := c.pathManager.addReader(PathAddReaderReq{
+	res := DefaultPathManager.addReader(PathAddReaderReq{
 		Author:   c,
 		PathName: pathName,
 		Credentials: AuthCredentials{
@@ -472,7 +469,7 @@ func (c *rtmpConn) setupAudio(
 func (c *rtmpConn) runPublish(conn *rtmp.Conn, u *url.URL) error {
 	pathName, query, rawQuery := pathNameAndQuery(u)
 
-	res := c.pathManager.addPublisher(PathAddPublisherReq{
+	res := DefaultPathManager.addPublisher(PathAddPublisherReq{
 		Author:   c,
 		PathName: pathName,
 		Credentials: AuthCredentials{

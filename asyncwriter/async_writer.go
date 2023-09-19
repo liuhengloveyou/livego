@@ -56,6 +56,17 @@ func (w *Writer) runInner() error {
 
 		err := cb.(func() error)()
 		if err != nil {
+			// cErr, ok := err.(*common.Error)
+			// if ok {
+			// 	if cErr.Equal(common.ErrTooFast) {
+			// 		time.Sleep(time.Millisecond * 10) // 太快了，sleep10ms
+			// 	} else if cErr.Equal(common.ErrTooSlowly) { //nolint:errcheck
+			// 		// 太慢了
+			// 	}
+
+			// 	continue
+			// }
+
 			return err
 		}
 	}
