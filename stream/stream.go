@@ -29,6 +29,12 @@ type Stream struct {
 	rtspsStream *gortsplib.ServerStream
 
 	mutex sync.RWMutex
+
+	LastPts     time.Duration
+	NTPTime     uint64
+	RTPTime     uint32
+	PacketCount uint32
+	OctetCount  uint32
 }
 
 // New allocates a Stream.
@@ -137,6 +143,8 @@ func (s *Stream) WriteRTPPacket(
 	sm := s.smedias[medi]
 	sf := sm.formats[forma]
 
+	s.LastPts = pts
+
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -145,22 +153,19 @@ func (s *Stream) WriteRTPPacket(
 
 func (s *Stream) UpdateStats(medi *description.Media, pkt rtcp.Packet) {
 	if tmpPkt, ok := pkt.(*rtcp.SenderReport); ok {
-		sm := s.smedias[medi]
-
-		sm.SSRC = tmpPkt.SSRC
-		sm.NTPTime = tmpPkt.NTPTime
-		sm.RTPTime = tmpPkt.RTPTime
-		sm.PacketCount = tmpPkt.PacketCount
-		sm.OctetCount = tmpPkt.OctetCount
+		s.NTPTime = tmpPkt.NTPTime
+		s.RTPTime = tmpPkt.RTPTime
+		s.PacketCount = tmpPkt.PacketCount
+		s.OctetCount = tmpPkt.OctetCount
 	}
 }
 
-func (s *Stream) GetStream(t string) *streamMedia {
-	for k, v := range s.smedias {
-		if string(k.Type) == t {
-			return v
-		}
-	}
+// func (s *Stream) GetStream(t string) *streamMedia {
+// 	for k, v := range s.smedias {
+// 		if string(k.Type) == t {
+// 			return v
+// 		}
+// 	}
 
-	return nil
-}
+// 	return nil
+// }

@@ -7,12 +7,6 @@ import (
 
 type streamMedia struct {
 	formats map[format.Format]*streamFormat `json:"-"`
-
-	SSRC        uint32
-	NTPTime     uint64
-	RTPTime     uint32
-	PacketCount uint32
-	OctetCount  uint32
 }
 
 func newStreamMedia(udpMaxPayloadSize int,

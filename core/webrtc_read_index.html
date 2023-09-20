@@ -18,9 +18,13 @@ html, body {
 </style>
 </head>
 <body>
+<div>
+    <button onclick="backPlay(-1000)"><</button>
+    <button onclick="backPlay(1000)">></button>
+</div>
 
+</div>
 <script>
-
 const restartPause = 2000;
 
 const unquoteCredential = (v) => (
@@ -94,29 +98,6 @@ const generateSdpFragment = (offerData, candidates) => {
     return frag;
 }
 
-// function printStat() {
-//     setTimeout(printStat, 1000)
-
-//     console.log(">>>printStat", document.cli)
-//     if (!document.cli || !document.cli.pc) {
-//         return
-//     }
-    
-//     let selector = document.cli.pc.getRemoteStreams()[0].getVideoTracks()[0];
-    
-
-//     document.cli.pc.getStats(selector).then(function(stats) {
-//                 for (let stat of stats.values()) {
-//                     console.log(">>>printStat.selector", stat.type)
-//                     if (stat.type === "outbound-rtp") {
-//                         console.log(stat.lastPacketReceivedTimestamp);
-//                     }
-//                 }
-//     });
-
-   
-// }
-
 class WHEPClient {
 	constructor(video) {
 		this.video = video;
@@ -150,7 +131,7 @@ class WHEPClient {
 
         this.dataChannel = this.pc.createDataChannel("datachan");
         this.dataChannel.onmessage = (evt) => this.onDataChannelMessage(evt);
-
+       
         const direction = "sendrecv";
         this.pc.addTransceiver("video", { direction });
         this.pc.addTransceiver("audio", { direction });
@@ -163,8 +144,7 @@ class WHEPClient {
             this.video.srcObject = evt.streams[0];
         };
 
-        this.pc.createOffer()
-            .then((offer) => this.onLocalOffer(offer));
+        this.pc.createOffer().then((offer) => this.onLocalOffer(offer));
     }
 
     onDataChannelMessage(e) {
@@ -370,6 +350,12 @@ const initVideoElement = (callback, container) => {
 window.addEventListener('DOMContentLoaded', initVideoElement(function(video){
     document.cli = new WHEPClient(video);
 } , document.body) );
+
+
+function backPlay(s) {
+    document.cli.dataChannel.send(s)
+    console.log("backPlay:", s)
+}
 
 </script>
 

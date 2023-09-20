@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"net"
 	"net/http"
@@ -73,10 +74,10 @@ outer:
 	return nil
 }
 
-func webrtcGatherOutgoingTracks(desc *description.Session) ([]*webRTCOutgoingTrack, error) {
+func (s *webRTCSession) webrtcGatherOutgoingTracks(desc *description.Session) ([]*webRTCOutgoingTrack, error) {
 	var tracks []*webRTCOutgoingTrack
 
-	videoTrack, err := newWebRTCOutgoingTrackVideo(desc)
+	videoTrack, err := newWebRTCOutgoingTrackVideo(s, desc)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +86,7 @@ func webrtcGatherOutgoingTracks(desc *description.Session) ([]*webRTCOutgoingTra
 		tracks = append(tracks, videoTrack)
 	}
 
-	audioTrack, err := newWebRTCOutgoingTrackAudio(desc)
+	audioTrack, err := newWebRTCOutgoingTrackAudio(s, desc)
 	if err != nil {
 		return nil, err
 	}
@@ -188,6 +189,8 @@ type webRTCSession struct {
 
 	chNew           chan webRTCNewSessionReq
 	chAddCandidates chan webRTCAddSessionCandidatesReq
+
+	AmendMs int64 // 慢多少ms
 }
 
 func newWebRTCSession(
@@ -438,7 +441,7 @@ func (s *webRTCSession) runRead() (int, error) {
 
 	defer res.Path.removeReader(PathRemoveReaderReq{author: s})
 
-	tracks, err := webrtcGatherOutgoingTracks(res.stream.Desc())
+	tracks, err := s.webrtcGatherOutgoingTracks(res.stream.Desc())
 	if err != nil {
 		return http.StatusBadRequest, err
 	}
@@ -502,22 +505,20 @@ func (s *webRTCSession) runRead() (int, error) {
 		s.Datachan = d
 
 		// Register channel opening handling
-		// d.OnOpen(func() {
-		// 	fmt.Printf("Data channel '%s'-'%d' open. Random messages will now be sent to any connected DataChannels every 5 seconds\n", d.Label(), d.ID())
-		// 	time.Sleep(3 * time.Second)
-		// 	for range time.NewTicker(5 * time.Second).C {
+		d.OnOpen(func() {
+			fmt.Printf("Data channel '%s'-'%d' open.\n", d.Label(), d.ID())
 
-		// 		// Send the message as text
-		// 		sendErr := d.SendText(time.Now().GoString())
-		// 		if sendErr != nil {
-		// 			fmt.Println(sendErr)
-		// 		}
-		// 	}
-		// })
+		})
 
 		// Register text message handling
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
-			fmt.Printf("Message from DataChannel '%s': '%s'\n", d.Label(), string(msg.Data))
+			idata, _ := strconv.Atoi(string(msg.Data))
+			if s.AmendMs+int64(idata) > 0 {
+				s.AmendMs = 0
+			} else {
+				s.AmendMs = s.AmendMs + int64(idata)
+			}
+			fmt.Printf("Message from DataChannel '%s': '%s' %d\n", d.Label(), string(msg.Data), s.AmendMs)
 		})
 	})
 
@@ -530,7 +531,7 @@ func (s *webRTCSession) runRead() (int, error) {
 	defer res.stream.RemoveReader(writer)
 
 	for _, track := range tracks {
-		track.start(s, res.stream, writer)
+		track.start(res.stream, writer)
 	}
 
 	log.Logger.Info("is reading from path '%s', %s",
