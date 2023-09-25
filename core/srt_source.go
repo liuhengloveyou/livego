@@ -10,8 +10,8 @@ import (
 	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
 	srt "github.com/datarhei/gosrt"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
-	"github.com/liuhengloveyou/livego/log"
 	"github.com/liuhengloveyou/livego/stream"
 	"github.com/liuhengloveyou/livego/unit"
 )
@@ -40,7 +40,7 @@ func newSRTSource(
 
 // run implements sourceStaticImpl.
 func (s *srtSource) Run(ctx context.Context, cnf *conf.PathConf, reloadConf chan *conf.PathConf) error {
-	log.Logger.Debug("connecting")
+	common.Logger.Debug("connecting")
 
 	conf := srt.DefaultConfig()
 	address, err := conf.UnmarshalURL(cnf.Source)
@@ -87,7 +87,7 @@ func (s *srtSource) runReader(sconn srt.Conn) error {
 	}
 
 	r.OnDecodeError(func(err error) {
-		log.Logger.Warn(err.Error())
+		common.Logger.Warn(err.Error())
 	})
 
 	var medias []*description.Media //nolint:prealloc

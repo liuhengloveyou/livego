@@ -21,7 +21,6 @@ import (
 
 	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
-	"github.com/liuhengloveyou/livego/log"
 )
 
 const (
@@ -349,7 +348,7 @@ func InitWebRTCManager(
 		readTimeout,
 		DefaultWebRTCManager,
 	)
-	log.Logger.Info("webrtc http:", address, DefaultWebRTCManager.httpServer)
+	common.Logger.Info("webrtc http:", address, DefaultWebRTCManager.httpServer)
 	if err != nil {
 		ctxCancel()
 		return err

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 
-	"github.com/liuhengloveyou/livego/log"
+	"github.com/liuhengloveyou/livego/common"
 )
 
 type loggerWriter struct {
@@ -49,14 +49,14 @@ type handlerLogger struct {
 }
 
 func (h *handlerLogger) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Logger.Debug("[conn %v] %s %s", r.RemoteAddr, r.Method, r.URL.Path)
+	common.Logger.Debug("[conn %v] %s %s", r.RemoteAddr, r.Method, r.URL.Path)
 
 	byts, _ := httputil.DumpRequest(r, true)
-	log.Logger.Debug("[conn %v] [c->s] %s", r.RemoteAddr, string(byts))
+	common.Logger.Debug("[conn %v] [c->s] %s", r.RemoteAddr, string(byts))
 
 	logw := &loggerWriter{w: w}
 
 	h.Handler.ServeHTTP(logw, r)
 
-	log.Logger.Debug("[conn %v] [s->c] %s", r.RemoteAddr, logw.dump())
+	common.Logger.Debug("[conn %v] [s->c] %s", r.RemoteAddr, logw.dump())
 }

@@ -11,9 +11,9 @@ import (
 	"github.com/bluenviron/gortsplib/v4/pkg/headers"
 	"github.com/google/uuid"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/externalcmd"
-	"github.com/liuhengloveyou/livego/log"
 )
 
 const (
@@ -65,10 +65,10 @@ func newRTSPConn(
 		created:             time.Now(),
 	}
 
-	log.Logger.Info("opened")
+	common.Logger.Info("opened")
 
 	if c.runOnConnect != "" {
-		log.Logger.Info("runOnConnect command started")
+		common.Logger.Info("runOnConnect command started")
 		_, port, _ := net.SplitHostPort(c.rtspAddress)
 		c.onConnectCmd = externalcmd.NewCmd(
 			c.externalCmdPool,
@@ -80,7 +80,7 @@ func newRTSPConn(
 				"RTSP_PORT": port,
 			},
 			func(err error) {
-				log.Logger.Info("runOnInit command exited: %v", err)
+				common.Logger.Info("runOnInit command exited: %v", err)
 			})
 	}
 
@@ -102,22 +102,22 @@ func (c *rtspConn) ip() net.IP {
 
 // onClose is called by rtspServer.
 func (c *rtspConn) onClose(err error) {
-	log.Logger.Info("closed (%v)", err)
+	common.Logger.Info("closed (%v)", err)
 
 	if c.onConnectCmd != nil {
 		c.onConnectCmd.Close()
-		log.Logger.Info("runOnConnect command stopped")
+		common.Logger.Info("runOnConnect command stopped")
 	}
 }
 
 // onRequest is called by rtspServer.
 func (c *rtspConn) onRequest(req *base.Request) {
-	log.Logger.Debug("[c->s] %v", req)
+	common.Logger.Debug("[c->s] %v", req)
 }
 
 // OnResponse is called by rtspServer.
 func (c *rtspConn) OnResponse(res *base.Response) {
-	log.Logger.Debug("[s->c] %v", res)
+	common.Logger.Debug("[s->c] %v", res)
 }
 
 // onDescribe is called by rtspServer.

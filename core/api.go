@@ -14,7 +14,6 @@ import (
 	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/httpserv"
-	"github.com/liuhengloveyou/livego/log"
 )
 
 func interfaceIsEmpty(i interface{}) bool {
@@ -282,13 +281,13 @@ func newAPI(
 		return nil, err
 	}
 
-	log.Logger.Info("listener opened on " + address)
+	common.Logger.Info("listener opened on " + address)
 
 	return a, nil
 }
 
 func (a *api) close() {
-	log.Logger.Info("listener is closing")
+	common.Logger.Info("listener is closing")
 	a.httpServer.Close()
 }
 

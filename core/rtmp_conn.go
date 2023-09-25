@@ -18,9 +18,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/liuhengloveyou/livego/asyncwriter"
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/externalcmd"
-	"github.com/liuhengloveyou/livego/log"
 	"github.com/liuhengloveyou/livego/rtmp"
 	"github.com/liuhengloveyou/livego/stream"
 	"github.com/liuhengloveyou/livego/unit"
@@ -111,7 +111,7 @@ func newRTMPConn(
 		created:             time.Now(),
 	}
 
-	log.Logger.Info("opened")
+	common.Logger.Info("opened")
 
 	c.wg.Add(1)
 	go c.run()
@@ -135,7 +135,7 @@ func (c *rtmpConn) run() {
 	defer c.wg.Done()
 
 	if c.runOnConnect != "" {
-		log.Logger.Info("runOnConnect command started")
+		common.Logger.Info("runOnConnect command started")
 		_, port, _ := net.SplitHostPort(c.rtspAddress)
 		onConnectCmd := externalcmd.NewCmd(
 			c.externalCmdPool,
@@ -147,12 +147,12 @@ func (c *rtmpConn) run() {
 				"RTSP_PORT": port,
 			},
 			func(err error) {
-				log.Logger.Info("runOnConnect command exited: %v", err)
+				common.Logger.Info("runOnConnect command exited: %v", err)
 			})
 
 		defer func() {
 			onConnectCmd.Close()
-			log.Logger.Info("runOnConnect command stopped")
+			common.Logger.Info("runOnConnect command stopped")
 		}()
 	}
 
@@ -162,7 +162,7 @@ func (c *rtmpConn) run() {
 
 	c.parent.closeConn(c)
 
-	log.Logger.Info("closed (%v)", err)
+	common.Logger.Info("closed (%v)", err)
 }
 
 func (c *rtmpConn) runInner() error {
@@ -261,24 +261,24 @@ func (c *rtmpConn) runRead(conn *rtmp.Conn, u *url.URL) error {
 			"the stream doesn't contain any supported codec, which are currently H264, MPEG-4 Audio, MPEG-1/2 Audio")
 	}
 
-	log.Logger.Info("is reading from path '%s', %s",
+	common.Logger.Info("is reading from path '%s', %s",
 		res.Path.name, SourceMediaInfo(medias))
 
 	pathConf := res.Path.safeConf()
 
 	if pathConf.RunOnRead != "" {
-		log.Logger.Info("runOnRead command started")
+		common.Logger.Info("runOnRead command started")
 		onReadCmd := externalcmd.NewCmd(
 			c.externalCmdPool,
 			pathConf.RunOnRead,
 			pathConf.RunOnReadRestart,
 			res.Path.externalCmdEnv(),
 			func(err error) {
-				log.Logger.Info("runOnRead command exited: %v", err)
+				common.Logger.Info("runOnRead command exited: %v", err)
 			})
 		defer func() {
 			onReadCmd.Close()
-			log.Logger.Info("runOnRead command stopped")
+			common.Logger.Info("runOnRead command stopped")
 		}()
 	}
 

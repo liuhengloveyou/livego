@@ -11,8 +11,8 @@ import (
 	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
 	"golang.org/x/net/ipv4"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
-	"github.com/liuhengloveyou/livego/log"
 	"github.com/liuhengloveyou/livego/stream"
 	"github.com/liuhengloveyou/livego/unit"
 )
@@ -83,7 +83,7 @@ func newUDPSource(
 
 // run implements sourceStaticImpl.
 func (s *udpSource) Run(ctx context.Context, cnf *conf.PathConf, _ chan *conf.PathConf) error {
-	log.Logger.Debug("connecting")
+	common.Logger.Debug("connecting")
 
 	hostPort := cnf.Source[len("udp://"):]
 
@@ -136,7 +136,7 @@ func (s *udpSource) runReader(pc net.PacketConn) error {
 	}
 
 	r.OnDecodeError(func(err error) {
-		log.Logger.Warn(err.Error())
+		common.Logger.Warn(err.Error())
 	})
 
 	var medias []*description.Media //nolint:prealloc

@@ -13,9 +13,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/pion/webrtc/v3"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/httpserv"
-	"github.com/liuhengloveyou/livego/log"
 	"github.com/liuhengloveyou/livego/whip"
 )
 
@@ -179,7 +179,7 @@ func (s *webRTCHTTPServer) onRequest(ctx *gin.Context) {
 					return
 				}
 
-				log.Logger.Info("connection %v failed to authenticate: %v", remoteAddr, terr.message)
+				common.Logger.Info("connection %v failed to authenticate: %v", remoteAddr, terr.message)
 
 				// wait some seconds to stop brute force attacks
 				<-time.After(webrtcPauseAfterAuthError)
@@ -193,7 +193,7 @@ func (s *webRTCHTTPServer) onRequest(ctx *gin.Context) {
 		}
 	}
 
-	log.Logger.Info("", "dir", dir, "fname", fname, "publish", publish, "method", ctx.Request.Method)
+	common.Logger.Info("", "dir", dir, "fname", fname, "publish", publish, "method", ctx.Request.Method)
 
 	switch fname {
 	case "":

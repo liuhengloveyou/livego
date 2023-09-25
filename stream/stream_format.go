@@ -9,8 +9,8 @@ import (
 	"github.com/pion/rtp"
 
 	"github.com/liuhengloveyou/livego/asyncwriter"
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/formatprocessor"
-	"github.com/liuhengloveyou/livego/log"
 	"github.com/liuhengloveyou/livego/unit"
 )
 
@@ -58,7 +58,7 @@ func (sf *streamFormat) writeUnit(s *Stream, medi *description.Media, u unit.Uni
 
 	err := sf.proc.Process(u, hasNonRTSPReaders)
 	if err != nil {
-		log.Logger.Error(err.Error())
+		common.Logger.Error(err.Error())
 		return
 	}
 

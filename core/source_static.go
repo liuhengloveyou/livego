@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
-	"github.com/liuhengloveyou/livego/log"
 )
 
 const (
@@ -106,7 +106,7 @@ func (s *sourceStatic) start() {
 	}
 
 	s.running = true
-	log.Logger.Info("started")
+	common.Logger.Info("started")
 
 	s.ctx, s.ctxCancel = context.WithCancel(context.Background())
 	s.done = make(chan struct{})
@@ -120,7 +120,7 @@ func (s *sourceStatic) stop() {
 	}
 
 	s.running = false
-	log.Logger.Info("stopped")
+	common.Logger.Info("stopped")
 
 	s.ctxCancel()
 
@@ -152,7 +152,7 @@ func (s *sourceStatic) Run() {
 		select {
 		case err := <-implErr:
 			innerCtxCancel()
-			log.Logger.Error(err.Error())
+			common.Logger.Error(err.Error())
 			recreating = true
 			recreateTimer = time.NewTimer(sourceStaticRetryPause)
 
@@ -209,7 +209,7 @@ func (s *sourceStatic) SetReady(req PathSourceStaticSetReadyReq) PathSourceStati
 		res := <-req.Res
 
 		if res.err == nil {
-			log.Logger.Info("ready: %s", SourceMediaInfo(req.Desc.Medias))
+			common.Logger.Info("ready: %s", SourceMediaInfo(req.Desc.Medias))
 		}
 
 		return res

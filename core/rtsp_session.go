@@ -13,9 +13,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/pion/rtp"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/externalcmd"
-	"github.com/liuhengloveyou/livego/log"
 	"github.com/liuhengloveyou/livego/stream"
 )
 
@@ -62,7 +62,7 @@ func newRTSPSession(
 		created:         time.Now(),
 	}
 
-	log.Logger.Info("created by %v", s.author.NetConn().RemoteAddr())
+	common.Logger.Info("created by %v", s.author.NetConn().RemoteAddr())
 
 	return s
 }
@@ -82,7 +82,7 @@ func (s *rtspSession) onClose(err error) {
 		if s.onReadCmd != nil {
 			s.onReadCmd.Close()
 			s.onReadCmd = nil
-			log.Logger.Info("runOnRead command stopped")
+			common.Logger.Info("runOnRead command stopped")
 		}
 	}
 
@@ -97,7 +97,7 @@ func (s *rtspSession) onClose(err error) {
 	s.path = nil
 	s.stream = nil
 
-	log.Logger.Info("destroyed (%v)", err)
+	common.Logger.Info("destroyed (%v)", err)
 }
 
 // onAnnounce is called by rtspServer.
@@ -267,7 +267,7 @@ func (s *rtspSession) onPlay(_ *gortsplib.ServerHandlerOnPlayCtx) (*base.Respons
 	h := make(base.Header)
 
 	if s.session.State() == gortsplib.ServerSessionStatePrePlay {
-		log.Logger.Info("is reading from path '%s', with %s, %s",
+		common.Logger.Info("is reading from path '%s', with %s, %s",
 			s.path.name,
 			s.session.SetuppedTransport(),
 			SourceMediaInfo(s.session.SetuppedMedias()))
@@ -275,14 +275,14 @@ func (s *rtspSession) onPlay(_ *gortsplib.ServerHandlerOnPlayCtx) (*base.Respons
 		pathConf := s.path.safeConf()
 
 		if pathConf.RunOnRead != "" {
-			log.Logger.Info("runOnRead command started")
+			common.Logger.Info("runOnRead command started")
 			s.onReadCmd = externalcmd.NewCmd(
 				s.externalCmdPool,
 				pathConf.RunOnRead,
 				pathConf.RunOnReadRestart,
 				s.path.externalCmdEnv(),
 				func(err error) {
-					log.Logger.Info("runOnRead command exited: %v", err)
+					common.Logger.Info("runOnRead command exited: %v", err)
 				})
 		}
 
@@ -344,7 +344,7 @@ func (s *rtspSession) onPause(_ *gortsplib.ServerHandlerOnPauseCtx) (*base.Respo
 	switch s.session.State() {
 	case gortsplib.ServerSessionStatePlay:
 		if s.onReadCmd != nil {
-			log.Logger.Info("runOnRead command stopped")
+			common.Logger.Info("runOnRead command stopped")
 			s.onReadCmd.Close()
 		}
 
@@ -385,17 +385,17 @@ func (s *rtspSession) ApiSourceDescribe() PathAPISourceOrReader {
 
 // onPacketLost is called by rtspServer.
 func (s *rtspSession) onPacketLost(ctx *gortsplib.ServerHandlerOnPacketLostCtx) {
-	log.Logger.Warn(ctx.Error.Error())
+	common.Logger.Warn(ctx.Error.Error())
 }
 
 // onDecodeError is called by rtspServer.
 func (s *rtspSession) onDecodeError(ctx *gortsplib.ServerHandlerOnDecodeErrorCtx) {
-	log.Logger.Warn(ctx.Error.Error())
+	common.Logger.Warn(ctx.Error.Error())
 }
 
 // onStreamWriteError is called by rtspServer.
 func (s *rtspSession) onStreamWriteError(ctx *gortsplib.ServerHandlerOnStreamWriteErrorCtx) {
-	log.Logger.Warn(ctx.Error.Error())
+	common.Logger.Warn(ctx.Error.Error())
 }
 
 func (s *rtspSession) apiItem() *apiRTSPSession {

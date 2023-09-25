@@ -18,7 +18,7 @@ import (
 	"github.com/pion/webrtc/v3"
 
 	"github.com/liuhengloveyou/livego/asyncwriter"
-	"github.com/liuhengloveyou/livego/log"
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/webrtcpc"
 )
 
@@ -237,7 +237,7 @@ func (s *webRTCSession) run() {
 
 	s.parent.closeSession(s)
 
-	log.Logger.Info("closed: %v", err)
+	common.Logger.Info("closed: %v", err)
 }
 
 func (s *webRTCSession) runInner() error {
@@ -260,7 +260,7 @@ func (s *webRTCSession) runInner() error {
 }
 
 func (s *webRTCSession) runInner2() (int, error) {
-	log.Logger.Info("webRTCSession.runInner2", "req", s.req.publish)
+	common.Logger.Info("webRTCSession.runInner2", "req", s.req.publish)
 	if s.req.publish {
 		return s.runPublish()
 	} else {
@@ -410,7 +410,7 @@ func (s *webRTCSession) runPublish() (int, error) {
 
 func (s *webRTCSession) runRead() (int, error) {
 	ip, _, _ := net.SplitHostPort(s.req.remoteAddr)
-	log.Logger.Info("webRTCSession.runRead")
+	common.Logger.Info("webRTCSession.runRead")
 
 	res := DefaultPathManager.addReader(PathAddReaderReq{
 		Author:   s,
@@ -534,7 +534,7 @@ func (s *webRTCSession) runRead() (int, error) {
 		track.start(res.stream, writer)
 	}
 
-	log.Logger.Info("is reading from path '%s', %s",
+	common.Logger.Info("is reading from path '%s', %s",
 		res.Path.name, SourceMediaInfo(webrtcMediasOfOutgoingTracks(tracks)))
 
 	writer.Start()

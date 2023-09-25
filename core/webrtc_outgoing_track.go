@@ -410,7 +410,6 @@ func (t *webRTCOutgoingTrack) start(stream *stream.Stream, writer *asyncwriter.W
 
 			for _, pkt := range pkts {
 				if _, ok := pkt.(*rtcp.ReceiverReport); ok {
-					// fmt.Println("@@@@@@@@@@@@", pkt, err)
 				}
 
 			}

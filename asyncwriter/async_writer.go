@@ -4,9 +4,8 @@ package asyncwriter
 import (
 	"fmt"
 
-	"github.com/liuhengloveyou/livego/log"
-
 	"github.com/bluenviron/gortsplib/v4/pkg/ringbuffer"
+	"github.com/liuhengloveyou/livego/common"
 )
 
 // Writer is an asynchronous writer.
@@ -76,6 +75,6 @@ func (w *Writer) runInner() error {
 func (w *Writer) Push(cb func() error) {
 	ok := w.buffer.Push(cb)
 	if !ok {
-		log.Logger.Warn("write queue is full")
+		common.Logger.Warn("write queue is full")
 	}
 }

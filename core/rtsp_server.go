@@ -18,7 +18,6 @@ import (
 	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/externalcmd"
-	"github.com/liuhengloveyou/livego/log"
 )
 
 type rtspServerParent interface {
@@ -137,7 +136,7 @@ func newRTSPServer(
 		return nil, err
 	}
 
-	log.Logger.Info("listener opened on %s", printAddresses(s.srv))
+	common.Logger.Info("listener opened on %s", printAddresses(s.srv))
 
 	if metrics != nil {
 		if !isTLS {
@@ -162,7 +161,7 @@ func (s *rtspServer) getServer() *gortsplib.Server {
 }
 
 func (s *rtspServer) close() {
-	log.Logger.Info("listener is closing")
+	common.Logger.Info("listener is closing")
 	s.ctxCancel()
 	s.wg.Wait()
 }
@@ -178,7 +177,7 @@ func (s *rtspServer) run() {
 outer:
 	select {
 	case err := <-serverErr:
-		log.Logger.Error("%s", err)
+		common.Logger.Error("%s", err)
 		break outer
 
 	case <-s.ctx.Done():

@@ -13,7 +13,6 @@ import (
 	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/externalcmd"
-	"github.com/liuhengloveyou/livego/log"
 )
 
 func srtMaxPayloadSize(u int) int {
@@ -138,7 +137,7 @@ outer:
 	for {
 		select {
 		case err := <-s.chAcceptErr:
-			log.Logger.Error("%s", err)
+			common.Logger.Error("%s", err)
 			break outer
 
 		case req := <-s.chNewConnRequest:

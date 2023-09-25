@@ -12,8 +12,8 @@ import (
 	"github.com/pion/rtp"
 
 	"github.com/bluenviron/gortsplib/v4/pkg/url"
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
-	"github.com/liuhengloveyou/livego/log"
 )
 
 func createRangeHeader(cnf *conf.PathConf) (*headers.Range, error) {
@@ -89,7 +89,7 @@ func newRTSPSource(
 
 // run implements sourceStaticImpl.
 func (s *rtspSource) Run(ctx context.Context, cnf *conf.PathConf, reloadConf chan *conf.PathConf) error {
-	log.Logger.Info("rtsp connecting")
+	common.Logger.Info("rtsp connecting")
 
 	c := &gortsplib.Client{
 		Transport:      cnf.SourceProtocol.Transport,
@@ -99,31 +99,31 @@ func (s *rtspSource) Run(ctx context.Context, cnf *conf.PathConf, reloadConf cha
 		WriteQueueSize: s.writeQueueSize,
 		AnyPortEnable:  cnf.SourceAnyPortEnable,
 		OnRequest: func(req *base.Request) {
-			log.Logger.Debug("c->s %v", req)
+			common.Logger.Debug("c->s %v", req)
 		},
 		OnResponse: func(res *base.Response) {
-			log.Logger.Debug("s->c %v", res)
+			common.Logger.Debug("s->c %v", res)
 		},
 		OnTransportSwitch: func(err error) {
-			log.Logger.Debug(err.Error())
+			common.Logger.Debug(err.Error())
 		},
 		OnPacketLost: func(err error) {
-			log.Logger.Warn(err.Error())
+			common.Logger.Warn(err.Error())
 		},
 		OnDecodeError: func(err error) {
-			log.Logger.Warn(err.Error())
+			common.Logger.Warn(err.Error())
 		},
 	}
 
 	u, err := url.Parse(cnf.Source)
 	if err != nil {
-		log.Logger.Error("url.Parse ERR", "err", err)
+		common.Logger.Error("url.Parse ERR", "err", err)
 		return err
 	}
 
 	err = c.Start(u.Scheme, u.Host)
 	if err != nil {
-		log.Logger.Error("start ERR", "err", err)
+		common.Logger.Error("start ERR", "err", err)
 		return err
 	}
 	defer c.Close()
@@ -133,13 +133,13 @@ func (s *rtspSource) Run(ctx context.Context, cnf *conf.PathConf, reloadConf cha
 		readErr <- func() error {
 			desc, _, err := c.Describe(u)
 			if err != nil {
-				log.Logger.Error("rtsp Describe ERR: ", "err", err)
+				common.Logger.Error("rtsp Describe ERR: ", "err", err)
 				return err
 			}
 
 			err = c.SetupAll(desc.BaseURL, desc.Medias)
 			if err != nil {
-				log.Logger.Error("rtsp SetupAll ERR: ", "err", err)
+				common.Logger.Error("rtsp SetupAll ERR: ", "err", err)
 				return err
 			}
 
@@ -148,7 +148,7 @@ func (s *rtspSource) Run(ctx context.Context, cnf *conf.PathConf, reloadConf cha
 				GenerateRTPPackets: false,
 			})
 			if res.err != nil {
-				log.Logger.Error("rtsp SetReady ERR: ", "err", res.err)
+				common.Logger.Error("rtsp SetReady ERR: ", "err", res.err)
 				return res.err
 			}
 

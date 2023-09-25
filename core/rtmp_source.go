@@ -11,8 +11,8 @@ import (
 	"github.com/bluenviron/gortsplib/v4/pkg/description"
 	"github.com/bluenviron/gortsplib/v4/pkg/format"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
-	"github.com/liuhengloveyou/livego/log"
 	"github.com/liuhengloveyou/livego/rtmp"
 	"github.com/liuhengloveyou/livego/stream"
 	"github.com/liuhengloveyou/livego/unit"
@@ -43,7 +43,7 @@ func newRTMPSource(
 
 // run implements sourceStaticImpl.
 func (s *rtmpSource) Run(ctx context.Context, cnf *conf.PathConf, reloadConf chan *conf.PathConf) error {
-	log.Logger.Debug("connecting")
+	common.Logger.Debug("connecting")
 
 	u, err := url.Parse(cnf.Source)
 	if err != nil {

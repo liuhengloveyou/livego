@@ -9,9 +9,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/httpserv"
-	"github.com/liuhengloveyou/livego/log"
 )
 
 func metric(key string, tags string, value int64) string {
@@ -60,13 +60,13 @@ func newMetrics(
 		return nil, err
 	}
 
-	log.Logger.Info("listener opened on " + address)
+	common.Logger.Info("listener opened on " + address)
 
 	return m, nil
 }
 
 func (m *Metrics) close() {
-	log.Logger.Info("listener is closing")
+	common.Logger.Info("listener is closing")
 	m.httpServer.Close()
 }
 

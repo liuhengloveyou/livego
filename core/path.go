@@ -13,9 +13,9 @@ import (
 	"github.com/bluenviron/gortsplib/v4/pkg/description"
 	"github.com/bluenviron/gortsplib/v4/pkg/url"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/externalcmd"
-	"github.com/liuhengloveyou/livego/log"
 	"github.com/liuhengloveyou/livego/stream"
 )
 
@@ -294,7 +294,6 @@ func (pa *Path) safeConf() *conf.PathConf {
 func (pa *Path) run() {
 	defer close(pa.done)
 	defer pa.wg.Done()
-	fmt.Println("@@@@@@Path.run", pa.conf.HasStaticSource(), pa.conf.SourceOnDemand)
 
 	if pa.conf.Source == "redirect" {
 		pa.source = &SourceRedirect{}
@@ -319,7 +318,7 @@ func (pa *Path) run() {
 			pa.conf.RunOnInitRestart,
 			pa.externalCmdEnv(),
 			func(err error) {
-				log.Logger.Info("runOnInit command exited: %v", err)
+				common.Logger.Info("runOnInit command exited: %v", err)
 			})
 	}
 
@@ -337,7 +336,7 @@ func (pa *Path) run() {
 
 	if onInitCmd != nil {
 		onInitCmd.Close()
-		log.Logger.Info("runOnInit command stopped")
+		common.Logger.Info("runOnInit command stopped")
 	}
 
 	for _, req := range pa.describeRequestsOnHold {
@@ -364,10 +363,10 @@ func (pa *Path) run() {
 
 	if pa.onDemandCmd != nil {
 		pa.onDemandCmd.Close()
-		log.Logger.Info("runOnDemand command stopped")
+		common.Logger.Info("runOnDemand command stopped")
 	}
 
-	log.Logger.Info("destroyed: %v", err)
+	common.Logger.Info("destroyed: %v", err)
 }
 
 func (pa *Path) runInner() error {
@@ -508,7 +507,6 @@ func (pa *Path) doReloadConf(newConf *conf.PathConf) {
 }
 
 func (pa *Path) doSourceStaticSetReady(req PathSourceStaticSetReadyReq) {
-	fmt.Println("@@@@@@Path) doSourceStaticSetReady")
 	err := pa.setReady(req.Desc, req.GenerateRTPPackets)
 	if err != nil {
 		req.Res <- PathSourceStaticSetReadyRes{err: err}
@@ -621,7 +619,7 @@ func (pa *Path) doAddPublisher(req PathAddPublisherReq) {
 			return
 		}
 
-		log.Logger.Info("closing existing publisher")
+		common.Logger.Info("closing existing publisher")
 		pa.source.(publisher).close()
 		pa.executeRemovePublisher()
 	}
@@ -643,7 +641,7 @@ func (pa *Path) doStartPublisher(req PathStartPublisherReq) {
 		return
 	}
 
-	log.Logger.Info("is publishing to Path '%s', %s", pa.name, SourceMediaInfo(req.desc.Medias))
+	common.Logger.Info("is publishing to Path '%s', %s", pa.name, SourceMediaInfo(req.desc.Medias))
 
 	if pa.conf.HasOnDemandPublisher() {
 		pa.onDemandPublisherReadyTimer.Stop()
@@ -816,7 +814,7 @@ func (pa *Path) onDemandPublisherStart() {
 		pa.conf.RunOnDemandRestart,
 		pa.externalCmdEnv(),
 		func(err error) {
-			log.Logger.Info("runOnDemand command exited: %v", err)
+			common.Logger.Info("runOnDemand command exited: %v", err)
 		})
 
 	pa.onDemandPublisherReadyTimer.Stop()
@@ -872,7 +870,7 @@ func (pa *Path) setReady(desc *description.Session, allocateEncoder bool) error 
 			pa.conf.RunOnReadyRestart,
 			pa.externalCmdEnv(),
 			func(err error) {
-				log.Logger.Info("runOnReady command exited: %v", err)
+				common.Logger.Info("runOnReady command exited: %v", err)
 			})
 	}
 
@@ -892,7 +890,7 @@ func (pa *Path) setNotReady() {
 	if pa.onReadyCmd != nil {
 		pa.onReadyCmd.Close()
 		pa.onReadyCmd = nil
-		log.Logger.Info("runOnReady command stopped")
+		common.Logger.Info("runOnReady command stopped")
 	}
 
 	if pa.stream != nil {
@@ -1044,7 +1042,7 @@ func (pa *Path) stopPublisher(req PathStopPublisherReq) {
 
 // addReader is called by a reader through PathManager.
 func (pa *Path) addReader(req PathAddReaderReq) PathAddReaderRes {
-	log.Logger.Info("path.addReader", "req", req)
+	common.Logger.Info("path.addReader", "req", req)
 	select {
 	case pa.chAddReader <- req:
 		return <-req.Res

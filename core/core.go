@@ -11,9 +11,9 @@ import (
 	"github.com/bluenviron/gortsplib/v4"
 	"github.com/gin-gonic/gin"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/externalcmd"
-	"github.com/liuhengloveyou/livego/log"
 	"github.com/liuhengloveyou/livego/rlimit"
 )
 
@@ -60,7 +60,7 @@ func New(args []string) (*Core, bool) {
 
 	err = p.createResources(true)
 	if err != nil {
-		log.Logger.Error("%s", err)
+		common.Logger.Error("%s", err)
 
 		p.closeResources(nil, false)
 		return nil, false
@@ -99,7 +99,7 @@ outer:
 	for {
 		select {
 		// case <-confChanged:
-		// 	log.Logger.Info( "reloading configuration (file changed)")
+		// 	common.Logger.Info( "reloading configuration (file changed)")
 
 		// 	newConf, _, err := conf.Load("livego.yml")
 		// 	if err != nil {
@@ -114,16 +114,16 @@ outer:
 		// 	}
 
 		case newConf := <-p.chAPIConfigSet:
-			log.Logger.Info("reloading configuration (API request)")
+			common.Logger.Info("reloading configuration (API request)")
 
 			err := p.reloadConf(newConf, true)
 			if err != nil {
-				log.Logger.Error("%s", err)
+				common.Logger.Error("%s", err)
 				break outer
 			}
 
 		case <-interrupt:
-			log.Logger.Info("shutting down gracefully")
+			common.Logger.Info("shutting down gracefully")
 			break outer
 
 		case <-p.ctx.Done():
@@ -141,7 +141,7 @@ func (p *Core) createResources(initial bool) error {
 
 	if initial {
 		if !p.confFound {
-			log.Logger.Warn("configuration file not found, using an empty configuration")
+			common.Logger.Warn("configuration file not found, using an empty configuration")
 		}
 
 		// on Linux, try to raise the number of file descriptors that can be opened
@@ -549,7 +549,7 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 	}
 
 	if newConf == nil && p.externalCmdPool != nil {
-		log.Logger.Info("waiting for external commands")
+		common.Logger.Info("waiting for external commands")
 		p.externalCmdPool.Close()
 	}
 }

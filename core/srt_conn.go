@@ -19,9 +19,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/liuhengloveyou/livego/asyncwriter"
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/externalcmd"
-	"github.com/liuhengloveyou/livego/log"
 	"github.com/liuhengloveyou/livego/stream"
 	"github.com/liuhengloveyou/livego/unit"
 )
@@ -102,7 +102,7 @@ func newSRTConn(
 		chSetConn:         make(chan srt.Conn),
 	}
 
-	log.Logger.Info("opened")
+	common.Logger.Info("opened")
 
 	c.wg.Add(1)
 	go c.run()
@@ -127,7 +127,7 @@ func (c *srtConn) run() {
 
 	c.parent.closeConn(c)
 
-	log.Logger.Info("closed (%v)", err)
+	common.Logger.Info("closed (%v)", err)
 }
 
 func (c *srtConn) runInner() error {
@@ -231,7 +231,7 @@ func (c *srtConn) runPublishReader(sconn srt.Conn, path *Path) error {
 	}
 
 	r.OnDecodeError(func(err error) {
-		log.Logger.Warn(err.Error())
+		common.Logger.Warn(err.Error())
 	})
 
 	var medias []*description.Media //nolint:prealloc
@@ -593,24 +593,24 @@ func (c *srtConn) runRead(req srtNewConnReq, pathName string, user string, pass 
 			"the stream doesn't contain any supported codec, which are currently H265, H264, Opus, MPEG-4 Audio")
 	}
 
-	log.Logger.Info("is reading from path '%s', %s",
+	common.Logger.Info("is reading from path '%s', %s",
 		res.Path.name, SourceMediaInfo(medias))
 
 	pathConf := res.Path.safeConf()
 
 	if pathConf.RunOnRead != "" {
-		log.Logger.Info("runOnRead command started")
+		common.Logger.Info("runOnRead command started")
 		onReadCmd := externalcmd.NewCmd(
 			c.externalCmdPool,
 			pathConf.RunOnRead,
 			pathConf.RunOnReadRestart,
 			res.Path.externalCmdEnv(),
 			func(err error) {
-				log.Logger.Info("runOnRead command exited: %v", err)
+				common.Logger.Info("runOnRead command exited: %v", err)
 			})
 		defer func() {
 			onReadCmd.Close()
-			log.Logger.Info("runOnRead command stopped")
+			common.Logger.Info("runOnRead command stopped")
 		}()
 	}
 

@@ -13,7 +13,6 @@ import (
 	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/externalcmd"
-	"github.com/liuhengloveyou/livego/log"
 )
 
 type rtmpServerAPIConnsListRes struct {
@@ -125,7 +124,7 @@ func newRTMPServer(
 		chAPIConnsKick:      make(chan rtmpServerAPIConnsKickReq),
 	}
 
-	log.Logger.Info("listener opened on %s", address)
+	common.Logger.Info("listener opened on %s", address)
 
 	if s.metrics != nil {
 		s.metrics.rtmpServerSet(s)
@@ -144,7 +143,7 @@ func newRTMPServer(
 }
 
 func (s *rtmpServer) close() {
-	log.Logger.Info("listener is closing")
+	common.Logger.Info("listener is closing")
 	s.ctxCancel()
 	s.wg.Wait()
 }
@@ -156,7 +155,7 @@ outer:
 	for {
 		select {
 		case err := <-s.chAcceptErr:
-			log.Logger.Error("%s", err)
+			common.Logger.Error("%s", err)
 			break outer
 
 		case nconn := <-s.chNewConn:

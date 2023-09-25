@@ -9,7 +9,6 @@ import (
 	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/externalcmd"
-	"github.com/liuhengloveyou/livego/log"
 )
 
 var DefaultPathManager *PathManager
@@ -173,7 +172,7 @@ outer:
 			pm.doDescribe(req)
 
 		case req := <-pm.chAddReader:
-			log.Logger.Info("PathManager.run: ", "req", req)
+			common.Logger.Info("PathManager.run: ", "req", req)
 			pm.doAddReader(req)
 
 		case req := <-pm.chAddPublisher:
@@ -293,7 +292,7 @@ func (pm *PathManager) doDescribe(req PathDescribeReq) {
 
 func (pm *PathManager) doAddReader(req PathAddReaderReq) {
 	PathConfName, PathConf, PathMatches, err := getConfForPath(pm.PathConfs, req.PathName)
-	log.Logger.Info("PathManager.doAddReader: ", req, err)
+	common.Logger.Info("PathManager.doAddReader: ", req, err)
 	if err != nil {
 		req.Res <- PathAddReaderRes{err: err}
 		return
@@ -312,7 +311,7 @@ func (pm *PathManager) doAddReader(req PathAddReaderReq) {
 		pm.createPath(PathConfName, PathConf, req.PathName, PathMatches)
 	}
 
-	log.Logger.Info("PathManager.doAddReader END: ", req, PathAddReaderRes{Path: pm.Paths[req.PathName]})
+	common.Logger.Info("PathManager.doAddReader END: ", req, PathAddReaderRes{Path: pm.Paths[req.PathName]})
 	req.Res <- PathAddReaderRes{Path: pm.Paths[req.PathName]}
 }
 
