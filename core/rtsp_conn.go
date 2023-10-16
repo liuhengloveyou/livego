@@ -11,9 +11,7 @@ import (
 	"github.com/bluenviron/gortsplib/v4/pkg/headers"
 	"github.com/google/uuid"
 
-	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
-	"github.com/liuhengloveyou/livego/externalcmd"
 )
 
 const (
@@ -26,98 +24,95 @@ type rtspConnParent interface {
 }
 
 type rtspConn struct {
-	rtspAddress         string
-	authMethods         []headers.AuthMethod
-	readTimeout         conf.StringDuration
-	runOnConnect        string
-	runOnConnectRestart bool
-	externalCmdPool     *externalcmd.Pool
-	conn                *gortsplib.ServerConn
-	parent              rtspConnParent
+	*conn
+
+	isTLS       bool
+	rtspAddress string
+	authMethods []headers.AuthMethod
+	readTimeout conf.StringDuration
+	pathManager *pathManager
+	rconn       *gortsplib.ServerConn
+	parent      rtspConnParent
 
 	uuid         uuid.UUID
 	created      time.Time
-	onConnectCmd *externalcmd.Cmd
 	authNonce    string
 	authFailures int
 }
 
 func newRTSPConn(
+	isTLS bool,
 	rtspAddress string,
 	authMethods []headers.AuthMethod,
 	readTimeout conf.StringDuration,
 	runOnConnect string,
 	runOnConnectRestart bool,
-	externalCmdPool *externalcmd.Pool,
+	runOnDisconnect string,
+	pathManager *pathManager,
 	conn *gortsplib.ServerConn,
 	parent rtspConnParent,
 ) *rtspConn {
 	c := &rtspConn{
-		rtspAddress:         rtspAddress,
-		authMethods:         authMethods,
-		readTimeout:         readTimeout,
-		runOnConnect:        runOnConnect,
-		runOnConnectRestart: runOnConnectRestart,
-		externalCmdPool:     externalCmdPool,
-		conn:                conn,
-		parent:              parent,
-		uuid:                uuid.New(),
-		created:             time.Now(),
+		isTLS:       isTLS,
+		rtspAddress: rtspAddress,
+		authMethods: authMethods,
+		readTimeout: readTimeout,
+		pathManager: pathManager,
+		rconn:       conn,
+		parent:      parent,
+		uuid:        uuid.New(),
+		created:     time.Now(),
 	}
 
-	common.Logger.Info("opened")
+	c.conn = newConn(rtspAddress)
 
-	if c.runOnConnect != "" {
-		common.Logger.Info("runOnConnect command started")
-		_, port, _ := net.SplitHostPort(c.rtspAddress)
-		c.onConnectCmd = externalcmd.NewCmd(
-			c.externalCmdPool,
-			c.runOnConnect,
-			c.runOnConnectRestart,
-			externalcmd.Environment{
-				"MTX_PATH":  "",
-				"RTSP_PATH": "", // deprecated
-				"RTSP_PORT": port,
-			},
-			func(err error) {
-				common.Logger.Info("runOnInit command exited: %v", err)
-			})
-	}
+	c.conn.open(apiPathSourceOrReader{
+		Type: func() string {
+			if isTLS {
+				return "rtspsConn"
+			}
+			return "rtspConn"
+		}(),
+		ID: c.uuid.String(),
+	})
 
 	return c
 }
 
 // Conn returns the RTSP connection.
 func (c *rtspConn) Conn() *gortsplib.ServerConn {
-	return c.conn
+	return c.rconn
 }
 
 func (c *rtspConn) remoteAddr() net.Addr {
-	return c.conn.NetConn().RemoteAddr()
+	return c.rconn.NetConn().RemoteAddr()
 }
 
 func (c *rtspConn) ip() net.IP {
-	return c.conn.NetConn().RemoteAddr().(*net.TCPAddr).IP
+	return c.rconn.NetConn().RemoteAddr().(*net.TCPAddr).IP
 }
 
 // onClose is called by rtspServer.
 func (c *rtspConn) onClose(err error) {
-	common.Logger.Info("closed (%v)", err)
-
-	if c.onConnectCmd != nil {
-		c.onConnectCmd.Close()
-		common.Logger.Info("runOnConnect command stopped")
-	}
+	c.conn.close(apiPathSourceOrReader{
+		Type: func() string {
+			if c.isTLS {
+				return "rtspsConn"
+			}
+			return "rtspConn"
+		}(),
+		ID: c.uuid.String(),
+	})
 }
 
 // onRequest is called by rtspServer.
 func (c *rtspConn) onRequest(req *base.Request) {
-	common.Logger.Debug("[c->s] %v", req)
+	fmt.Println("[c->s] %v", req)
 }
 
 // OnResponse is called by rtspServer.
 func (c *rtspConn) OnResponse(res *base.Response) {
-	common.Logger.Debug("[s->c] %v", res)
+	fmt.Println("[s->c] %v", res)
 }
 
 // onDescribe is called by rtspServer.
@@ -140,16 +135,16 @@ func (c *rtspConn) onDescribe(ctx *gortsplib.ServerHandlerOnDescribeCtx,
 		}
 	}
 
-	res := DefaultPathManager.describe(PathDescribeReq{
-		PathName: ctx.Path,
+	res := c.pathManager.describe(pathDescribeReq{
+		pathName: ctx.Path,
 		url:      ctx.Request.URL,
-		credentials: AuthCredentials{
-			Query:       ctx.Query,
-			Ip:          c.ip(),
-			Proto:       authProtocolRTSP,
-			ID:          &c.uuid,
-			RtspRequest: ctx.Request,
-			RtspNonce:   c.authNonce,
+		credentials: authCredentials{
+			query:       ctx.Query,
+			ip:          c.ip(),
+			proto:       authProtocolRTSP,
+			id:          &c.uuid,
+			rtspRequest: ctx.Request,
+			rtspNonce:   c.authNonce,
 		},
 	})
 
@@ -223,7 +218,7 @@ func (c *rtspConn) apiItem() *apiRTSPConn {
 		ID:            c.uuid,
 		Created:       c.created,
 		RemoteAddr:    c.remoteAddr().String(),
-		BytesReceived: c.conn.BytesReceived(),
-		BytesSent:     c.conn.BytesSent(),
+		BytesReceived: c.rconn.BytesReceived(),
+		BytesSent:     c.rconn.BytesSent(),
 	}
 }

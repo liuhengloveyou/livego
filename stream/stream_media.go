@@ -6,7 +6,7 @@ import (
 )
 
 type streamMedia struct {
-	formats map[format.Format]*streamFormat `json:"-"`
+	formats map[format.Format]*streamFormat
 }
 
 func newStreamMedia(udpMaxPayloadSize int,

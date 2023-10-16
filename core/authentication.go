@@ -49,27 +49,27 @@ const (
 	authProtocolRTSP   authProtocol = "rtsp"
 	authProtocolRTMP   authProtocol = "rtmp"
 	authProtocolHLS    authProtocol = "hls"
-	AuthProtocolWebRTC authProtocol = "webrtc"
+	authProtocolWebRTC authProtocol = "webrtc"
 	authProtocolSRT    authProtocol = "srt"
 )
 
-type AuthCredentials struct {
-	Query       string
-	Ip          net.IP
-	User        string
-	Pass        string
-	Proto       authProtocol
-	ID          *uuid.UUID
-	RtspRequest *base.Request
-	RtspBaseURL *url.URL
-	RtspNonce   string
+type authCredentials struct {
+	query       string
+	ip          net.IP
+	user        string
+	pass        string
+	proto       authProtocol
+	id          *uuid.UUID
+	rtspRequest *base.Request
+	rtspBaseURL *url.URL
+	rtspNonce   string
 }
 
 func doExternalAuthentication(
 	ur string,
 	path string,
 	publish bool,
-	credentials AuthCredentials,
+	credentials authCredentials,
 ) error {
 	enc, _ := json.Marshal(struct {
 		IP       string     `json:"ip"`
@@ -81,19 +81,19 @@ func doExternalAuthentication(
 		Action   string     `json:"action"`
 		Query    string     `json:"query"`
 	}{
-		IP:       credentials.Ip.String(),
-		User:     credentials.User,
-		Password: credentials.Pass,
+		IP:       credentials.ip.String(),
+		User:     credentials.user,
+		Password: credentials.pass,
 		Path:     path,
-		Protocol: string(credentials.Proto),
-		ID:       credentials.ID,
+		Protocol: string(credentials.proto),
+		ID:       credentials.id,
 		Action: func() string {
 			if publish {
 				return "publish"
 			}
 			return "read"
 		}(),
-		Query: credentials.Query,
+		Query: credentials.query,
 	})
 	res, err := http.Post(ur, "application/json", bytes.NewReader(enc))
 	if err != nil {
@@ -115,16 +115,16 @@ func doAuthentication(
 	externalAuthenticationURL string,
 	rtspAuthMethods conf.AuthMethods,
 	pathName string,
-	pathConf *conf.PathConf,
+	pathConf *conf.Path,
 	publish bool,
-	credentials AuthCredentials,
+	credentials authCredentials,
 ) error {
 	var rtspAuth headers.Authorization
-	if credentials.RtspRequest != nil {
-		err := rtspAuth.Unmarshal(credentials.RtspRequest.Header["Authorization"])
+	if credentials.rtspRequest != nil {
+		err := rtspAuth.Unmarshal(credentials.rtspRequest.Header["Authorization"])
 		if err == nil && rtspAuth.Method == headers.AuthBasic {
-			credentials.User = rtspAuth.BasicUser
-			credentials.Pass = rtspAuth.BasicPass
+			credentials.user = rtspAuth.BasicUser
+			credentials.pass = rtspAuth.BasicPass
 		}
 	}
 
@@ -155,26 +155,26 @@ func doAuthentication(
 	}
 
 	if pathIPs != nil {
-		if !ipEqualOrInRange(credentials.Ip, pathIPs) {
-			return &errAuthentication{message: fmt.Sprintf("IP %s not allowed", credentials.Ip)}
+		if !ipEqualOrInRange(credentials.ip, pathIPs) {
+			return &errAuthentication{message: fmt.Sprintf("IP %s not allowed", credentials.ip)}
 		}
 	}
 
 	if pathUser != "" {
-		if credentials.RtspRequest != nil && rtspAuth.Method == headers.AuthDigest {
+		if credentials.rtspRequest != nil && rtspAuth.Method == headers.AuthDigest {
 			err := auth.Validate(
-				credentials.RtspRequest,
+				credentials.rtspRequest,
 				pathUser,
 				pathPass,
-				credentials.RtspBaseURL,
+				credentials.rtspBaseURL,
 				rtspAuthMethods,
 				"IPCAM",
-				credentials.RtspNonce)
+				credentials.rtspNonce)
 			if err != nil {
 				return &errAuthentication{message: err.Error()}
 			}
-		} else if !checkCredential(pathUser, credentials.User) ||
-			!checkCredential(pathPass, credentials.Pass) {
+		} else if !checkCredential(pathUser, credentials.user) ||
+			!checkCredential(pathPass, credentials.pass) {
 			return &errAuthentication{message: "invalid credentials"}
 		}
 	}

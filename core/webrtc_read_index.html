@@ -18,13 +18,9 @@ html, body {
 </style>
 </head>
 <body>
-<div>
-    <button onclick="backPlay(-1000)"><</button>
-    <button onclick="backPlay(1000)">></button>
-</div>
 
-</div>
 <script>
+
 const restartPause = 2000;
 
 const unquoteCredential = (v) => (
@@ -68,6 +64,48 @@ const parseOffer = (offer) => {
     return ret;
 };
 
+const enableStereoOpus = (section) => {
+    let opusPayloadFormat = '';
+    let lines = section.split('\r\n');
+
+    for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('a=rtpmap:') && lines[i].toLowerCase().includes('opus/')) {
+            opusPayloadFormat = lines[i].slice('a=rtpmap:'.length).split(' ')[0];
+            break;
+        }
+    }
+
+    if (opusPayloadFormat === '') {
+        return section;
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('a=fmtp:' + opusPayloadFormat + ' ')) {
+            if (!lines[i].includes('stereo')) {
+                lines[i] += ';stereo=1';
+            }
+            if (!lines[i].includes('sprop-stereo')) {
+                lines[i] += ';sprop-stereo=1';
+            }
+        }
+    }
+
+    return lines.join('\r\n');
+};
+
+const editOffer = (offer) => {
+    const sections = offer.sdp.split('m=');
+
+    for (let i = 0; i < sections.length; i++) {
+        const section = sections[i];
+        if (section.startsWith('audio')) {
+            sections[i] = enableStereoOpus(section);
+        }
+    }
+
+    offer.sdp = sections.join('m=');
+};
+
 const generateSdpFragment = (offerData, candidates) => {
     const candidatesByMedia = {};
     for (const candidate of candidates) {
@@ -102,7 +140,6 @@ class WHEPClient {
 	constructor(video) {
 		this.video = video;
 		this.pc = null;
-        this.dataChannel = null;
 		this.restartTimeout = null;
         this.eTag = '';
         this.queuedCandidates = [];
@@ -120,18 +157,13 @@ class WHEPClient {
                 console.log('error: ' + err);
                 this.scheduleRestart();
             });
-	
-    
-    }
+	}
 
     onIceServers(res) {
         this.pc = new RTCPeerConnection({
             iceServers: linkToIceServers(res.headers.get('Link')),
         });
 
-        this.dataChannel = this.pc.createDataChannel("datachan");
-        this.dataChannel.onmessage = (evt) => this.onDataChannelMessage(evt);
-       
         const direction = "sendrecv";
         this.pc.addTransceiver("video", { direction });
         this.pc.addTransceiver("audio", { direction });
@@ -144,14 +176,13 @@ class WHEPClient {
             this.video.srcObject = evt.streams[0];
         };
 
-        this.pc.createOffer().then((offer) => this.onLocalOffer(offer));
-    }
-
-    onDataChannelMessage(e) {
-        console.log("onDataChannelMessage:::", e.data)
+        this.pc.createOffer()
+            .then((offer) => this.onLocalOffer(offer));
     }
 
     onLocalOffer(offer) {
+        editOffer(offer);
+
         this.offerData = parseOffer(offer.sdp);
         this.pc.setLocalDescription(offer);
 
@@ -163,11 +194,12 @@ class WHEPClient {
                 'Content-Type': 'application/sdp',
             },
             body: offer.sdp,
-        }).then((res) => {
+        })
+            .then((res) => {
                 if (res.status !== 201) {
                     throw new Error('bad status code');
                 }
-                this.eTag = res.headers.get('E-Tag');
+                this.eTag = res.headers.get('ETag');
                 return res.text();
             })
             .then((sdp) => this.onRemoteAnswer(new RTCSessionDescription({
@@ -198,8 +230,7 @@ class WHEPClient {
             return;
         }
 
-        console.log("onRemoteAnswer", answer)
-		this.pc.setRemoteDescription(new RTCSessionDescription(answer));
+		this.pc.setRemoteDescription(answer);
 
         if (this.queuedCandidates.length !== 0) {
             this.sendLocalCandidates(this.queuedCandidates);
@@ -347,15 +378,7 @@ const initVideoElement = (callback, container) => {
 	};
 };
 
-window.addEventListener('DOMContentLoaded', initVideoElement(function(video){
-    document.cli = new WHEPClient(video);
-} , document.body) );
-
-
-function backPlay(s) {
-    document.cli.dataChannel.send(s)
-    console.log("backPlay:", s)
-}
+window.addEventListener('DOMContentLoaded', initVideoElement((video) => new WHEPClient(video), document.body));
 
 </script>
 

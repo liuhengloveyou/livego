@@ -15,13 +15,8 @@ import (
 	"github.com/bluenviron/gortsplib/v4/pkg/liberrors"
 	"github.com/google/uuid"
 
-	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
-	"github.com/liuhengloveyou/livego/externalcmd"
 )
-
-type rtspServerParent interface {
-}
 
 func printAddresses(srv *gortsplib.Server) string {
 	var ret []string
@@ -47,9 +42,9 @@ type rtspServer struct {
 	protocols           map[conf.Protocol]struct{}
 	runOnConnect        string
 	runOnConnectRestart bool
-	externalCmdPool     *externalcmd.Pool
-	metrics             *Metrics
-	parent              rtspServerParent
+	runOnDisconnect     string
+	metrics             *metrics
+	pathManager         *pathManager
 
 	ctx       context.Context
 	ctxCancel func()
@@ -80,9 +75,9 @@ func newRTSPServer(
 	protocols map[conf.Protocol]struct{},
 	runOnConnect string,
 	runOnConnectRestart bool,
-	externalCmdPool *externalcmd.Pool,
-	metrics *Metrics,
-	parent rtspServerParent,
+	runOnDisconnect string,
+	metrics *metrics,
+	pathManager *pathManager,
 ) (*rtspServer, error) {
 	ctx, ctxCancel := context.WithCancel(context.Background())
 
@@ -94,9 +89,9 @@ func newRTSPServer(
 		protocols:           protocols,
 		runOnConnect:        runOnConnect,
 		runOnConnectRestart: runOnConnectRestart,
-		externalCmdPool:     externalCmdPool,
+		runOnDisconnect:     runOnDisconnect,
 		metrics:             metrics,
-		parent:              parent,
+		pathManager:         pathManager,
 		ctx:                 ctx,
 		ctxCancel:           ctxCancel,
 		conns:               make(map[*gortsplib.ServerConn]*rtspConn),
@@ -136,8 +131,6 @@ func newRTSPServer(
 		return nil, err
 	}
 
-	common.Logger.Info("listener opened on %s", printAddresses(s.srv))
-
 	if metrics != nil {
 		if !isTLS {
 			metrics.setRTSPServer(s)
@@ -161,7 +154,6 @@ func (s *rtspServer) getServer() *gortsplib.Server {
 }
 
 func (s *rtspServer) close() {
-	common.Logger.Info("listener is closing")
 	s.ctxCancel()
 	s.wg.Wait()
 }
@@ -177,7 +169,7 @@ func (s *rtspServer) run() {
 outer:
 	select {
 	case err := <-serverErr:
-		common.Logger.Error("%s", err)
+		fmt.Println("%s", err)
 		break outer
 
 	case <-s.ctx.Done():
@@ -200,12 +192,14 @@ outer:
 // OnConnOpen implements gortsplib.ServerHandlerOnConnOpen.
 func (s *rtspServer) OnConnOpen(ctx *gortsplib.ServerHandlerOnConnOpenCtx) {
 	c := newRTSPConn(
+		s.isTLS,
 		s.rtspAddress,
 		s.authMethods,
 		s.readTimeout,
 		s.runOnConnect,
 		s.runOnConnectRestart,
-		s.externalCmdPool,
+		s.runOnDisconnect,
+		s.pathManager,
 		ctx.Conn,
 		s)
 	s.mutex.Lock()
@@ -243,7 +237,7 @@ func (s *rtspServer) OnSessionOpen(ctx *gortsplib.ServerHandlerOnSessionOpenCtx)
 		s.protocols,
 		ctx.Session,
 		ctx.Conn,
-		s.externalCmdPool,
+		s.pathManager,
 		s)
 	s.mutex.Lock()
 	s.sessions[ctx.Session] = se
@@ -377,14 +371,14 @@ func (s *rtspServer) apiConnsGet(uuid uuid.UUID) (*apiRTSPConn, error) {
 
 	conn := s.findConnByUUID(uuid)
 	if conn == nil {
-		return nil, common.ErrAPINotFound
+		return nil, errAPINotFound
 	}
 
 	return conn.apiItem(), nil
 }
 
 // apiSessionsList is called by api and metrics.
-func (s *rtspServer) apiSessionsList() (*apiRTSPSessionsList, error) {
+func (s *rtspServer) apiSessionsList() (*apiRTSPSessionList, error) {
 	select {
 	case <-s.ctx.Done():
 		return nil, fmt.Errorf("terminated")
@@ -394,7 +388,7 @@ func (s *rtspServer) apiSessionsList() (*apiRTSPSessionsList, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	data := &apiRTSPSessionsList{
+	data := &apiRTSPSessionList{
 		Items: []*apiRTSPSession{},
 	}
 
@@ -422,7 +416,7 @@ func (s *rtspServer) apiSessionsGet(uuid uuid.UUID) (*apiRTSPSession, error) {
 
 	_, sx := s.findSessionByUUID(uuid)
 	if sx == nil {
-		return nil, common.ErrAPINotFound
+		return nil, errAPINotFound
 	}
 
 	return sx.apiItem(), nil
@@ -441,7 +435,7 @@ func (s *rtspServer) apiSessionsKick(uuid uuid.UUID) error {
 
 	key, sx := s.findSessionByUUID(uuid)
 	if sx == nil {
-		return common.ErrAPINotFound
+		return errAPINotFound
 	}
 
 	sx.close()

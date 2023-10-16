@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 )
 
@@ -15,18 +14,18 @@ const (
 )
 
 type sourceStaticImpl interface {
-	Run(context.Context, *conf.PathConf, chan *conf.PathConf) error
-	ApiSourceDescribe() PathAPISourceOrReader
+	run(context.Context, *conf.Path, chan *conf.Path) error
+	apiSourceDescribe() apiPathSourceOrReader
 }
 
 type sourceStaticParent interface {
-	sourceStaticSetReady(context.Context, PathSourceStaticSetReadyReq)
-	sourceStaticSetNotReady(context.Context, PathSourceStaticSetNotReadyReq)
+	sourceStaticSetReady(context.Context, pathSourceStaticSetReadyReq)
+	sourceStaticSetNotReady(context.Context, pathSourceStaticSetNotReadyReq)
 }
 
 // sourceStatic is a static source.
 type sourceStatic struct {
-	conf   *conf.PathConf
+	conf   *conf.Path
 	parent sourceStaticParent
 
 	ctx       context.Context
@@ -35,16 +34,16 @@ type sourceStatic struct {
 	running   bool
 
 	// in
-	chReloadConf                  chan *conf.PathConf
-	chSourceStaticImplSetReady    chan PathSourceStaticSetReadyReq
-	chSourceStaticImplSetNotReady chan PathSourceStaticSetNotReadyReq
+	chReloadConf                  chan *conf.Path
+	chSourceStaticImplSetReady    chan pathSourceStaticSetReadyReq
+	chSourceStaticImplSetNotReady chan pathSourceStaticSetNotReadyReq
 
 	// out
 	done chan struct{}
 }
 
-func NewSourceStatic(
-	cnf *conf.PathConf,
+func newSourceStatic(
+	cnf *conf.Path,
 	readTimeout conf.StringDuration,
 	writeTimeout conf.StringDuration,
 	writeQueueSize int,
@@ -53,9 +52,9 @@ func NewSourceStatic(
 	s := &sourceStatic{
 		conf:                          cnf,
 		parent:                        parent,
-		chReloadConf:                  make(chan *conf.PathConf),
-		chSourceStaticImplSetReady:    make(chan PathSourceStaticSetReadyReq),
-		chSourceStaticImplSetNotReady: make(chan PathSourceStaticSetNotReadyReq),
+		chReloadConf:                  make(chan *conf.Path),
+		chSourceStaticImplSetReady:    make(chan pathSourceStaticSetReadyReq),
+		chSourceStaticImplSetNotReady: make(chan pathSourceStaticSetNotReadyReq),
 	}
 
 	switch {
@@ -79,67 +78,68 @@ func NewSourceStatic(
 			readTimeout,
 			s)
 
-	case strings.HasPrefix(cnf.Source, "srt://"):
-		s.impl = newSRTSource(
+	case strings.HasPrefix(cnf.Source, "whep://") ||
+		strings.HasPrefix(cnf.Source, "wheps://"):
+		s.impl = newWebRTCSource(
 			readTimeout,
 			s)
 
-	case strings.HasPrefix(cnf.Source, "whep://") ||
-		strings.HasPrefix(cnf.Source, "wheps://"):
-		s.impl = NewWebRTCSource(
-			readTimeout,
+	case cnf.Source == "rpiCamera":
+		s.impl = newRPICameraSource(
 			s)
 	}
 
 	return s
 }
 
-func (s *sourceStatic) close() {
-	if s.running {
-		s.stop()
-	}
+func (s *sourceStatic) close(reason string) {
+	s.stop(reason)
 }
 
-func (s *sourceStatic) start() {
+func (s *sourceStatic) start(onDemand bool) {
 	if s.running {
 		panic("should not happen")
 	}
 
 	s.running = true
-	common.Logger.Info("started")
+	// s.impl.Log(logger.Info, "started%s",
+	// 	func() string {
+	// 		if onDemand {
+	// 			return " on demand"
+	// 		}
+	// 		return ""
+	// 	}())
 
 	s.ctx, s.ctxCancel = context.WithCancel(context.Background())
 	s.done = make(chan struct{})
 
-	go s.Run()
+	go s.run()
 }
 
-func (s *sourceStatic) stop() {
+func (s *sourceStatic) stop(reason string) {
 	if !s.running {
 		panic("should not happen")
 	}
 
 	s.running = false
-	common.Logger.Info("stopped")
-
 	s.ctxCancel()
 
 	// we must wait since s.ctx is not thread safe
 	<-s.done
 }
 
-func (s *sourceStatic) Run() {
+func (s *sourceStatic) run() {
 	defer close(s.done)
 
 	var innerCtx context.Context
 	var innerCtxCancel func()
 	implErr := make(chan error)
-	innerReloadConf := make(chan *conf.PathConf)
+	innerReloadConf := make(chan *conf.Path)
 
 	recreate := func() {
 		innerCtx, innerCtxCancel = context.WithCancel(context.Background())
 		go func() {
-			implErr <- s.impl.Run(innerCtx, s.conf, innerReloadConf)
+			implErr <- s.impl.run(innerCtx, s.conf, innerReloadConf)
 		}()
 	}
 
@@ -152,7 +152,7 @@ func (s *sourceStatic) Run() {
 		select {
 		case err := <-implErr:
 			innerCtxCancel()
-			common.Logger.Error(err.Error())
+			fmt.Println(err.Error())
 			recreating = true
 			recreateTimer = time.NewTimer(sourceStaticRetryPause)
 
@@ -189,38 +189,38 @@ func (s *sourceStatic) Run() {
 	}
 }
 
-func (s *sourceStatic) reloadConf(newConf *conf.PathConf) {
+func (s *sourceStatic) reloadConf(newConf *conf.Path) {
 	select {
 	case s.chReloadConf <- newConf:
 	case <-s.ctx.Done():
 	}
 }
 
-// ApiSourceDescribe implements source.
-func (s *sourceStatic) ApiSourceDescribe() PathAPISourceOrReader {
-	return s.impl.ApiSourceDescribe()
+// apiSourceDescribe implements source.
+func (s *sourceStatic) apiSourceDescribe() apiPathSourceOrReader {
+	return s.impl.apiSourceDescribe()
 }
 
-// SetReady is called by a sourceStaticImpl.
-func (s *sourceStatic) SetReady(req PathSourceStaticSetReadyReq) PathSourceStaticSetReadyRes {
-	req.Res = make(chan PathSourceStaticSetReadyRes)
+// setReady is called by a sourceStaticImpl.
+func (s *sourceStatic) setReady(req pathSourceStaticSetReadyReq) pathSourceStaticSetReadyRes {
+	req.res = make(chan pathSourceStaticSetReadyRes)
 	select {
 	case s.chSourceStaticImplSetReady <- req:
-		res := <-req.Res
+		res := <-req.res
 
 		if res.err == nil {
-			common.Logger.Info("ready: %s", SourceMediaInfo(req.Desc.Medias))
+			fmt.Println("ready: %s", mediaInfo(req.desc.Medias))
 		}
 
 		return res
 
 	case <-s.ctx.Done():
-		return PathSourceStaticSetReadyRes{err: fmt.Errorf("terminated")}
+		return pathSourceStaticSetReadyRes{err: fmt.Errorf("terminated")}
 	}
 }
 
-// SetNotReady is called by a sourceStaticImpl.
-func (s *sourceStatic) SetNotReady(req PathSourceStaticSetNotReadyReq) {
+// setNotReady is called by a sourceStaticImpl.
+func (s *sourceStatic) setNotReady(req pathSourceStaticSetNotReadyReq) {
 	req.res = make(chan struct{})
 	select {
 	case s.chSourceStaticImplSetNotReady <- req:

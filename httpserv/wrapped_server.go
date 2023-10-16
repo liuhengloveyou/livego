@@ -4,6 +4,7 @@ package httpserv
 import (
 	"context"
 	"crypto/tls"
+	"log"
 	"net"
 	"net/http"
 	"time"
@@ -67,6 +68,7 @@ func NewWrappedServer(
 			Handler:           h,
 			TLSConfig:         tlsConfig,
 			ReadHeaderTimeout: readTimeout,
+			ErrorLog:          log.New(&nilWriter{}, "", 0),
 		},
 	}
 

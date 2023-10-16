@@ -8,20 +8,29 @@ import (
 	"github.com/liuhengloveyou/livego/conf"
 )
 
-type apiPath struct {
-	Name          string         `json:"name"`
-	ConfName      string         `json:"confName"`
-	Conf          *conf.PathConf `json:"conf"`
-	Source        interface{}    `json:"source"`
-	SourceReady   bool           `json:"sourceReady"` // Deprecated: renamed to Ready
-	Ready         bool           `json:"ready"`
-	ReadyTime     *time.Time     `json:"readyTime"`
-	Tracks        []string       `json:"tracks"`
-	BytesReceived uint64         `json:"bytesReceived"`
-	Readers       []interface{}  `json:"readers"`
+type apiPathConfList struct {
+	ItemCount int                  `json:"itemCount"`
+	PageCount int                  `json:"pageCount"`
+	Items     []*conf.OptionalPath `json:"items"`
 }
 
-type apiPathsList struct {
+type apiPathSourceOrReader struct {
+	Type string `json:"type"`
+	ID   string `json:"id"`
+}
+
+type apiPath struct {
+	Name          string                  `json:"name"`
+	ConfName      string                  `json:"confName"`
+	Source        *apiPathSourceOrReader  `json:"source"`
+	Ready         bool                    `json:"ready"`
+	ReadyTime     *time.Time              `json:"readyTime"`
+	Tracks        []string                `json:"tracks"`
+	BytesReceived uint64                  `json:"bytesReceived"`
+	Readers       []apiPathSourceOrReader `json:"readers"`
+}
+
+type apiPathList struct {
 	ItemCount int        `json:"itemCount"`
 	PageCount int        `json:"pageCount"`
 	Items     []*apiPath `json:"items"`
@@ -34,7 +43,7 @@ type apiHLSMuxer struct {
 	BytesSent   uint64    `json:"bytesSent"`
 }
 
-type apiHLSMuxersList struct {
+type apiHLSMuxerList struct {
 	ItemCount int            `json:"itemCount"`
 	PageCount int            `json:"pageCount"`
 	Items     []*apiHLSMuxer `json:"items"`
@@ -72,7 +81,7 @@ type apiRTMPConn struct {
 	BytesSent     uint64           `json:"bytesSent"`
 }
 
-type apiRTMPConnsList struct {
+type apiRTMPConnList struct {
 	ItemCount int            `json:"itemCount"`
 	PageCount int            `json:"pageCount"`
 	Items     []*apiRTMPConn `json:"items"`
@@ -97,7 +106,7 @@ type apiRTSPSession struct {
 	BytesSent     uint64              `json:"bytesSent"`
 }
 
-type apiRTSPSessionsList struct {
+type apiRTSPSessionList struct {
 	ItemCount int               `json:"itemCount"`
 	PageCount int               `json:"pageCount"`
 	Items     []*apiRTSPSession `json:"items"`
@@ -121,7 +130,7 @@ type apiSRTConn struct {
 	BytesSent     uint64          `json:"bytesSent"`
 }
 
-type apiSRTConnsList struct {
+type apiSRTConnList struct {
 	ItemCount int           `json:"itemCount"`
 	PageCount int           `json:"pageCount"`
 	Items     []*apiSRTConn `json:"items"`
@@ -134,7 +143,7 @@ const (
 	apiWebRTCSessionStatePublish apiWebRTCSessionState = "publish"
 )
 
-type ApiWebRTCSession struct {
+type apiWebRTCSession struct {
 	ID                        uuid.UUID             `json:"id"`
 	Created                   time.Time             `json:"created"`
 	RemoteAddr                string                `json:"remoteAddr"`
@@ -147,8 +156,8 @@ type ApiWebRTCSession struct {
 	BytesSent                 uint64                `json:"bytesSent"`
 }
 
-type ApiWebRTCSessionsList struct {
+type apiWebRTCSessionList struct {
 	ItemCount int                 `json:"itemCount"`
 	PageCount int                 `json:"pageCount"`
-	Items     []*ApiWebRTCSession `json:"items"`
+	Items     []*apiWebRTCSession `json:"items"`
 }

@@ -7,30 +7,21 @@ import (
 	// start pprof
 	_ "net/http/pprof"
 
-	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/httpserv"
 )
 
-type pprofParent interface {
-}
-
 type pprof struct {
-	parent pprofParent
-
 	httpServer *httpserv.WrappedServer
 }
 
 func newPPROF(
 	address string,
 	readTimeout conf.StringDuration,
-	parent pprofParent,
 ) (*pprof, error) {
-	pp := &pprof{
-		parent: parent,
-	}
+	pp := &pprof{}
 
-	network, address := RestrictNetwork("tcp", address)
+	network, address := restrictNetwork("tcp", address)
 
 	var err error
 	pp.httpServer, err = httpserv.NewWrappedServer(
@@ -45,12 +36,9 @@ func newPPROF(
 		return nil, err
 	}
 
-	common.Logger.Info("listener opened on " + address)
-
 	return pp, nil
 }
 
 func (pp *pprof) close() {
-	common.Logger.Info("listener is closing")
 	pp.httpServer.Close()
 }

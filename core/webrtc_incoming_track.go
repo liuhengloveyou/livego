@@ -7,6 +7,8 @@ import (
 
 	"github.com/bluenviron/gortsplib/v4/pkg/description"
 	"github.com/bluenviron/gortsplib/v4/pkg/format"
+	"github.com/bluenviron/gortsplib/v4/pkg/liberrors"
+	"github.com/bluenviron/gortsplib/v4/pkg/rtplossdetector"
 	"github.com/bluenviron/gortsplib/v4/pkg/rtptime"
 	"github.com/pion/rtcp"
 	"github.com/pion/rtp"
@@ -113,6 +115,7 @@ func (webrtcTrackWrapper) PTSEqualsDTS(*rtp.Packet) bool {
 }
 
 func (t *webRTCIncomingTrack) start(stream *stream.Stream, timeDecoder *rtptime.GlobalDecoder) {
+	lossDetector := rtplossdetector.New()
 	trackWrapper := &webrtcTrackWrapper{clockRate: int(t.track.Codec().ClockRate)}
 
 	go func() {
@@ -120,6 +123,12 @@ func (t *webRTCIncomingTrack) start(stream *stream.Stream, timeDecoder *rtptime.
 			pkt, _, err := t.track.ReadRTP()
 			if err != nil {
 				return
+			}
+
+			lost := lossDetector.Process(pkt)
+			if lost != 0 {
+				fmt.Println((liberrors.ErrClientRTPPacketsLost{Lost: lost}).Error())
+				// do not return
 			}
 
 			// sometimes Chrome sends empty RTP packets. ignore them.

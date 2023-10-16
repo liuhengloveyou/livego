@@ -6,33 +6,81 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"reflect"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/bluenviron/gortsplib/v4"
 	"github.com/gin-gonic/gin"
 
-	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
-	"github.com/liuhengloveyou/livego/externalcmd"
+	"github.com/liuhengloveyou/livego/record"
 	"github.com/liuhengloveyou/livego/rlimit"
 )
 
+var version = "v0.0.0"
+
+var defaultConfPaths = []string{
+	"livego.yml",
+	"/usr/local/etc/mediamtx.yml",
+	"/usr/etc/mediamtx.yml",
+}
+
+func gatherCleanerEntries(paths map[string]*conf.Path) []record.CleanerEntry {
+	out := make(map[record.CleanerEntry]struct{})
+
+	for _, pa := range paths {
+		if pa.Record {
+			entry := record.CleanerEntry{
+				RecordPath:        pa.RecordPath,
+				RecordFormat:      pa.RecordFormat,
+				RecordDeleteAfter: time.Duration(pa.RecordDeleteAfter),
+			}
+			out[entry] = struct{}{}
+		}
+	}
+
+	out2 := make([]record.CleanerEntry, len(out))
+	i := 0
+
+	for v := range out {
+		out2[i] = v
+		i++
+	}
+
+	sort.Slice(out2, func(i, j int) bool {
+		if out2[i].RecordPath != out2[j].RecordPath {
+			return out2[i].RecordPath < out2[j].RecordPath
+		}
+		return out2[i].RecordDeleteAfter < out2[j].RecordDeleteAfter
+	})
+
+	return out2
+}
+
+// var cli struct {
+// 	Version  bool   `help:"print version"`
+// 	Confpath string `arg:"" default:""`
+// }
+
 // Core is an instance of mediamtx.
 type Core struct {
-	ctx             context.Context
-	ctxCancel       func()
-	conf            *conf.Conf
-	confFound       bool
-	externalCmdPool *externalcmd.Pool
-	metrics         *Metrics
-	pprof           *pprof
-	rtspServer      *rtspServer
-	rtspsServer     *rtspServer
-	rtmpServer      *rtmpServer
-	rtmpsServer     *rtmpServer
-	srtServer       *srtServer
-	api             *api
-
+	ctx           context.Context
+	ctxCancel     func()
+	confPath      string
+	conf          *conf.Conf
+	metrics       *metrics
+	pprof         *pprof
+	recordCleaner *record.Cleaner
+	pathManager   *pathManager
+	rtspServer    *rtspServer
+	rtspsServer   *rtspServer
+	rtmpServer    *rtmpServer
+	rtmpsServer   *rtmpServer
+	webRTCManager *webRTCManager
+	api           *api
 	// in
 	chAPIConfigSet chan *conf.Conf
 
@@ -41,7 +89,8 @@ type Core struct {
 }
 
 // New allocates a core.
-func New(args []string) (*Core, bool) {
+func New(configure string) (*Core, bool) {
+
 	ctx, ctxCancel := context.WithCancel(context.Background())
 
 	p := &Core{
@@ -52,7 +101,7 @@ func New(args []string) (*Core, bool) {
 	}
 
 	var err error
-	p.conf, p.confFound, err = conf.Load("livego.yml")
+	p.conf, p.confPath, err = conf.Load(configure, defaultConfPaths)
 	if err != nil {
 		fmt.Printf("ERR: %s\n", err)
 		return nil, false
@@ -60,8 +109,7 @@ func New(args []string) (*Core, bool) {
 
 	err = p.createResources(true)
 	if err != nil {
-		common.Logger.Error("%s", err)
-
+		fmt.Printf("ERR: %s\n", err)
 		p.closeResources(nil, false)
 		return nil, false
 	}
@@ -85,13 +133,6 @@ func (p *Core) Wait() {
 func (p *Core) run() {
 	defer close(p.done)
 
-	// confChanged := func() chan struct{} {
-	// 	if p.confWatcher != nil {
-	// 		return p.confWatcher.Watch()
-	// 	}
-	// 	return make(chan struct{})
-	// }()
-
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
@@ -99,31 +140,31 @@ outer:
 	for {
 		select {
 		// case <-confChanged:
-		// 	common.Logger.Info( "reloading configuration (file changed)")
+		// 	fmt.Println("reloading configuration (file changed)")
 
-		// 	newConf, _, err := conf.Load("livego.yml")
+		// 	newConf, _, err := conf.Load(p.confPath, nil)
 		// 	if err != nil {
-		// 		p.Log(logger.Error, "%s", err)
+		// 		fmt.Println("%s", err)
 		// 		break outer
 		// 	}
 
 		// 	err = p.reloadConf(newConf, false)
 		// 	if err != nil {
-		// 		p.Log(logger.Error, "%s", err)
+		// 		fmt.Println("%s", err)
 		// 		break outer
 		// 	}
 
 		case newConf := <-p.chAPIConfigSet:
-			common.Logger.Info("reloading configuration (API request)")
+			fmt.Println("reloading configuration (API request)")
 
 			err := p.reloadConf(newConf, true)
 			if err != nil {
-				common.Logger.Error("%s", err)
+				fmt.Println("%s", err)
 				break outer
 			}
 
 		case <-interrupt:
-			common.Logger.Info("shutting down gracefully")
+			fmt.Println("shutting down gracefully")
 			break outer
 
 		case <-p.ctx.Done():
@@ -140,44 +181,60 @@ func (p *Core) createResources(initial bool) error {
 	var err error
 
 	if initial {
-		if !p.confFound {
-			common.Logger.Warn("configuration file not found, using an empty configuration")
+		if p.confPath != "" {
+			a, _ := filepath.Abs(p.confPath)
+			fmt.Println("configuration loaded from %s", a)
+		} else {
+			list := make([]string, len(defaultConfPaths))
+			for i, pa := range defaultConfPaths {
+				a, _ := filepath.Abs(pa)
+				list[i] = a
+			}
+
+			fmt.Println(
+				"configuration file not found (looked in %s), using an empty configuration",
+				strings.Join(list, ", "))
 		}
 
 		// on Linux, try to raise the number of file descriptors that can be opened
-		// to allow the maximum possible number of clients
-		// do not check for errors
+		// to allow the maximum possible number of clients.
 		rlimit.Raise() //nolint:errcheck
 
 		gin.SetMode(gin.ReleaseMode)
-
-		p.externalCmdPool = externalcmd.NewPool()
 	}
 
-	if p.conf.Metrics && p.metrics == nil {
+	if p.conf.Metrics &&
+		p.metrics == nil {
 		p.metrics, err = newMetrics(
 			p.conf.MetricsAddress,
 			p.conf.ReadTimeout,
-			p,
 		)
 		if err != nil {
 			return err
 		}
 	}
 
-	if p.conf.PPROF && p.pprof == nil {
+	if p.conf.PPROF &&
+		p.pprof == nil {
 		p.pprof, err = newPPROF(
 			p.conf.PPROFAddress,
 			p.conf.ReadTimeout,
-			p,
 		)
 		if err != nil {
 			return err
 		}
 	}
 
-	if DefaultPathManager == nil {
-		InitPathManager(
+	cleanerEntries := gatherCleanerEntries(p.conf.Paths)
+	if len(cleanerEntries) != 0 &&
+		p.recordCleaner == nil {
+		p.recordCleaner = record.NewCleaner(
+			cleanerEntries,
+		)
+	}
+
+	if p.pathManager == nil {
+		p.pathManager = newPathManager(
 			p.conf.ExternalAuthenticationURL,
 			p.conf.RTSPAddress,
 			p.conf.AuthMethods,
@@ -186,12 +243,14 @@ func (p *Core) createResources(initial bool) error {
 			p.conf.WriteQueueSize,
 			p.conf.UDPMaxPayloadSize,
 			p.conf.Paths,
-			p.externalCmdPool,
 			p.metrics,
 		)
 	}
 
-	if p.conf.RTSP && (p.conf.Encryption == conf.EncryptionNo || p.conf.Encryption == conf.EncryptionOptional) && p.rtspServer == nil {
+	if p.conf.RTSP &&
+		(p.conf.Encryption == conf.EncryptionNo ||
+			p.conf.Encryption == conf.EncryptionOptional) &&
+		p.rtspServer == nil {
 		_, useUDP := p.conf.Protocols[conf.Protocol(gortsplib.TransportUDP)]
 		_, useMulticast := p.conf.Protocols[conf.Protocol(gortsplib.TransportUDPMulticast)]
 
@@ -215,9 +274,9 @@ func (p *Core) createResources(initial bool) error {
 			p.conf.Protocols,
 			p.conf.RunOnConnect,
 			p.conf.RunOnConnectRestart,
-			p.externalCmdPool,
+			p.conf.RunOnDisconnect,
 			p.metrics,
-			p,
+			p.pathManager,
 		)
 		if err != nil {
 			return err
@@ -248,16 +307,18 @@ func (p *Core) createResources(initial bool) error {
 			p.conf.Protocols,
 			p.conf.RunOnConnect,
 			p.conf.RunOnConnectRestart,
-			p.externalCmdPool,
+			p.conf.RunOnDisconnect,
 			p.metrics,
-			p,
+			p.pathManager,
 		)
 		if err != nil {
 			return err
 		}
 	}
 
-	if p.conf.RTMP && (p.conf.RTMPEncryption == conf.EncryptionNo || p.conf.RTMPEncryption == conf.EncryptionOptional) &&
+	if p.conf.RTMP &&
+		(p.conf.RTMPEncryption == conf.EncryptionNo ||
+			p.conf.RTMPEncryption == conf.EncryptionOptional) &&
 		p.rtmpServer == nil {
 		p.rtmpServer, err = newRTMPServer(
 			p.conf.RTMPAddress,
@@ -270,8 +331,9 @@ func (p *Core) createResources(initial bool) error {
 			p.conf.RTSPAddress,
 			p.conf.RunOnConnect,
 			p.conf.RunOnConnectRestart,
-			p.externalCmdPool,
+			p.conf.RunOnDisconnect,
 			p.metrics,
+			p.pathManager,
 		)
 		if err != nil {
 			return err
@@ -293,16 +355,18 @@ func (p *Core) createResources(initial bool) error {
 			p.conf.RTSPAddress,
 			p.conf.RunOnConnect,
 			p.conf.RunOnConnectRestart,
-			p.externalCmdPool,
+			p.conf.RunOnDisconnect,
 			p.metrics,
+			p.pathManager,
 		)
 		if err != nil {
 			return err
 		}
 	}
 
-	if p.conf.WebRTC {
-		if err = InitWebRTCManager(
+	if p.conf.WebRTC &&
+		p.webRTCManager == nil {
+		p.webRTCManager, err = newWebRTCManager(
 			p.conf.WebRTCAddress,
 			p.conf.WebRTCEncryption,
 			p.conf.WebRTCServerKey,
@@ -312,48 +376,40 @@ func (p *Core) createResources(initial bool) error {
 			p.conf.WebRTCICEServers2,
 			p.conf.ReadTimeout,
 			p.conf.WriteQueueSize,
+			p.conf.WebRTCICEInterfaces,
 			p.conf.WebRTCICEHostNAT1To1IPs,
 			p.conf.WebRTCICEUDPMuxAddress,
 			p.conf.WebRTCICETCPMuxAddress,
+			p.pathManager,
 			p.metrics,
-		); err != nil {
-			return err
-		}
-	}
-
-	if p.conf.SRT && p.srtServer == nil {
-		p.srtServer, err = newSRTServer(
-			p.conf.SRTAddress,
-			p.conf.ReadTimeout,
-			p.conf.WriteTimeout,
-			p.conf.WriteQueueSize,
-			p.conf.UDPMaxPayloadSize,
-			p.externalCmdPool,
 		)
 		if err != nil {
 			return err
 		}
 	}
 
-	if p.conf.API && p.api == nil {
-		p.api, err = newAPI(
-			p.conf.APIAddress,
-			p.conf.ReadTimeout,
-			p.conf,
-			p.rtspServer,
-			p.rtspsServer,
-			p.rtmpServer,
-			p.rtmpsServer,
-			p.srtServer,
-			p,
-		)
-		if err != nil {
-			return err
-		}
-	}
+	// if p.conf.API &&
+	// 	p.api == nil {
+	// 	p.api, err = newAPI(
+	// 		p.conf.APIAddress,
+	// 		p.conf.ReadTimeout,
+	// 		p.conf,
+	// 		p.pathManager,
+	// 		p.rtspServer,
+	// 		p.rtspsServer,
+	// 		p.rtmpServer,
+	// 		p.rtmpsServer,
+	// 		p.hlsManager,
+	// 		p.webRTCManager,
+	// 		p.srtServer,
+	// 	)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
 
-	// if initial && p.confFound {
-	// 	p.confWatcher, err = confwatcher.New("livego.yml")
+	// if initial && p.confPath != "" {
+	// 	p.confWatcher, err = confwatcher.New(p.confPath)
 	// 	if err != nil {
 	// 		return err
 	// 	}
@@ -363,6 +419,7 @@ func (p *Core) createResources(initial bool) error {
 }
 
 func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
+
 	closeMetrics := newConf == nil ||
 		newConf.Metrics != p.conf.Metrics ||
 		newConf.MetricsAddress != p.conf.MetricsAddress ||
@@ -372,6 +429,9 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		newConf.PPROF != p.conf.PPROF ||
 		newConf.PPROFAddress != p.conf.PPROFAddress ||
 		newConf.ReadTimeout != p.conf.ReadTimeout
+
+	closeRecorderCleaner := newConf == nil ||
+		!reflect.DeepEqual(gatherCleanerEntries(newConf.Paths), gatherCleanerEntries(p.conf.Paths))
 
 	closePathManager := newConf == nil ||
 		newConf.ExternalAuthenticationURL != p.conf.ExternalAuthenticationURL ||
@@ -383,7 +443,7 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		newConf.UDPMaxPayloadSize != p.conf.UDPMaxPayloadSize ||
 		closeMetrics
 	if !closePathManager && !reflect.DeepEqual(newConf.Paths, p.conf.Paths) {
-		// DefaultPathManager.confReload(newConf.Paths)
+		p.pathManager.confReload(newConf.Paths)
 	}
 
 	closeRTSPServer := newConf == nil ||
@@ -404,6 +464,7 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		!reflect.DeepEqual(newConf.Protocols, p.conf.Protocols) ||
 		newConf.RunOnConnect != p.conf.RunOnConnect ||
 		newConf.RunOnConnectRestart != p.conf.RunOnConnectRestart ||
+		newConf.RunOnDisconnect != p.conf.RunOnDisconnect ||
 		closeMetrics ||
 		closePathManager
 
@@ -421,6 +482,7 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		!reflect.DeepEqual(newConf.Protocols, p.conf.Protocols) ||
 		newConf.RunOnConnect != p.conf.RunOnConnect ||
 		newConf.RunOnConnectRestart != p.conf.RunOnConnectRestart ||
+		newConf.RunOnDisconnect != p.conf.RunOnDisconnect ||
 		closeMetrics ||
 		closePathManager
 
@@ -434,6 +496,7 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		newConf.RTSPAddress != p.conf.RTSPAddress ||
 		newConf.RunOnConnect != p.conf.RunOnConnect ||
 		newConf.RunOnConnectRestart != p.conf.RunOnConnectRestart ||
+		newConf.RunOnDisconnect != p.conf.RunOnDisconnect ||
 		closeMetrics ||
 		closePathManager
 
@@ -449,6 +512,7 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		newConf.RTSPAddress != p.conf.RTSPAddress ||
 		newConf.RunOnConnect != p.conf.RunOnConnect ||
 		newConf.RunOnConnectRestart != p.conf.RunOnConnectRestart ||
+		newConf.RunOnDisconnect != p.conf.RunOnDisconnect ||
 		closeMetrics ||
 		closePathManager
 
@@ -463,6 +527,7 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		!reflect.DeepEqual(newConf.WebRTCICEServers2, p.conf.WebRTCICEServers2) ||
 		newConf.ReadTimeout != p.conf.ReadTimeout ||
 		newConf.WriteQueueSize != p.conf.WriteQueueSize ||
+		!reflect.DeepEqual(newConf.WebRTCICEInterfaces, p.conf.WebRTCICEInterfaces) ||
 		!reflect.DeepEqual(newConf.WebRTCICEHostNAT1To1IPs, p.conf.WebRTCICEHostNAT1To1IPs) ||
 		newConf.WebRTCICEUDPMuxAddress != p.conf.WebRTCICEUDPMuxAddress ||
 		newConf.WebRTCICETCPMuxAddress != p.conf.WebRTCICETCPMuxAddress ||
@@ -472,10 +537,14 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 	closeSRTServer := newConf == nil ||
 		newConf.SRT != p.conf.SRT ||
 		newConf.SRTAddress != p.conf.SRTAddress ||
+		newConf.RTSPAddress != p.conf.RTSPAddress ||
 		newConf.ReadTimeout != p.conf.ReadTimeout ||
 		newConf.WriteTimeout != p.conf.WriteTimeout ||
 		newConf.WriteQueueSize != p.conf.WriteQueueSize ||
 		newConf.UDPMaxPayloadSize != p.conf.UDPMaxPayloadSize ||
+		newConf.RunOnConnect != p.conf.RunOnConnect ||
+		newConf.RunOnConnectRestart != p.conf.RunOnConnectRestart ||
+		newConf.RunOnDisconnect != p.conf.RunOnDisconnect ||
 		closePathManager
 
 	closeAPI := newConf == nil ||
@@ -503,15 +572,15 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		}
 	}
 
-	if closeSRTServer && p.srtServer != nil {
-		p.srtServer.close()
-		p.srtServer = nil
-	}
-
-	// if closeWebRTCManager && p.webRTCManager != nil {
-	// 	p.webRTCManager.close()
-	// 	p.webRTCManager = nil
+	// if closeSRTServer && p.srtServer != nil {
+	// 	p.srtServer.close()
+	// 	p.srtServer = nil
 	// }
+
+	if closeWebRTCManager && p.webRTCManager != nil {
+		p.webRTCManager.close()
+		p.webRTCManager = nil
+	}
 
 	if closeRTMPSServer && p.rtmpsServer != nil {
 		p.rtmpsServer.close()
@@ -533,9 +602,14 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		p.rtspServer = nil
 	}
 
-	if closePathManager && DefaultPathManager != nil {
-		DefaultPathManager.close()
-		DefaultPathManager = nil
+	if closePathManager && p.pathManager != nil {
+		p.pathManager.close()
+		p.pathManager = nil
+	}
+
+	if closeRecorderCleaner && p.recordCleaner != nil {
+		p.recordCleaner.Close()
+		p.recordCleaner = nil
 	}
 
 	if closePPROF && p.pprof != nil {
@@ -548,10 +622,10 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		p.metrics = nil
 	}
 
-	if newConf == nil && p.externalCmdPool != nil {
-		common.Logger.Info("waiting for external commands")
-		p.externalCmdPool.Close()
-	}
+	// if newConf == nil && p.externalCmdPool != nil {
+	// 	p.Log(logger.Info, "waiting for running hooks")
+	// 	p.externalCmdPool.Close()
+	// }
 }
 
 func (p *Core) reloadConf(newConf *conf.Conf, calledByAPI bool) error {

@@ -19,8 +19,8 @@ import (
 )
 
 type webRTCSourceParent interface {
-	SetReady(req PathSourceStaticSetReadyReq) PathSourceStaticSetReadyRes
-	SetNotReady(req PathSourceStaticSetNotReadyReq)
+	setReady(req pathSourceStaticSetReadyReq) pathSourceStaticSetReadyRes
+	setNotReady(req pathSourceStaticSetNotReadyReq)
 }
 
 type webRTCSource struct {
@@ -29,7 +29,7 @@ type webRTCSource struct {
 	parent webRTCSourceParent
 }
 
-func NewWebRTCSource(
+func newWebRTCSource(
 	readTimeout conf.StringDuration,
 	parent webRTCSourceParent,
 ) *webRTCSource {
@@ -42,7 +42,7 @@ func NewWebRTCSource(
 }
 
 // run implements sourceStaticImpl.
-func (s *webRTCSource) Run(ctx context.Context, cnf *conf.PathConf, _ chan *conf.PathConf) error {
+func (s *webRTCSource) run(ctx context.Context, cnf *conf.Path, _ chan *conf.Path) error {
 	u, err := url.Parse(cnf.Source)
 	if err != nil {
 		return err
@@ -59,7 +59,7 @@ func (s *webRTCSource) Run(ctx context.Context, cnf *conf.PathConf, _ chan *conf
 		return err
 	}
 
-	api, err := webrtcNewAPI(nil, nil, nil)
+	api, err := webrtcNewAPI(nil, nil, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -137,15 +137,15 @@ func (s *webRTCSource) Run(ctx context.Context, cnf *conf.PathConf, _ chan *conf
 	}
 	medias := webrtcMediasOfIncomingTracks(tracks)
 
-	rres := s.parent.SetReady(PathSourceStaticSetReadyReq{
-		Desc:               &description.Session{Medias: medias},
-		GenerateRTPPackets: true,
+	rres := s.parent.setReady(pathSourceStaticSetReadyReq{
+		desc:               &description.Session{Medias: medias},
+		generateRTPPackets: true,
 	})
 	if rres.err != nil {
 		return rres.err
 	}
 
-	defer s.parent.SetNotReady(PathSourceStaticSetNotReadyReq{})
+	defer s.parent.setNotReady(pathSourceStaticSetNotReadyReq{})
 
 	timeDecoder := rtptime.NewGlobalDecoder()
 
@@ -163,8 +163,8 @@ func (s *webRTCSource) Run(ctx context.Context, cnf *conf.PathConf, _ chan *conf
 }
 
 // apiSourceDescribe implements sourceStaticImpl.
-func (*webRTCSource) ApiSourceDescribe() PathAPISourceOrReader {
-	return PathAPISourceOrReader{
+func (*webRTCSource) apiSourceDescribe() apiPathSourceOrReader {
+	return apiPathSourceOrReader{
 		Type: "webRTCSource",
 		ID:   "",
 	}

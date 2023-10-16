@@ -19,7 +19,6 @@ import (
 	"github.com/pion/interceptor"
 	"github.com/pion/webrtc/v3"
 
-	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 )
 
@@ -31,8 +30,6 @@ const (
 	webrtcStreamID             = "mediamtx"
 	webrtcTurnSecretExpiration = 24 * 3600 * time.Second
 )
-
-var DefaultWebRTCManager *WebRTCManager
 
 var videoCodecs = []webrtc.RTPCodecParameters{
 	{
@@ -89,7 +86,7 @@ var audioCodecs = []webrtc.RTPCodecParameters{
 			MimeType:    webrtc.MimeTypeOpus,
 			ClockRate:   48000,
 			Channels:    2,
-			SDPFmtpLine: "minptime=10;useinbandfec=1",
+			SDPFmtpLine: "minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1",
 		},
 		PayloadType: 111,
 	},
@@ -169,12 +166,28 @@ func randomTurnUser() (string, error) {
 	return string(b), nil
 }
 
+func stringInSlice(a string, list []string) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
+}
+
 func webrtcNewAPI(
+	iceInterfaces []string,
 	iceHostNAT1To1IPs []string,
 	iceUDPMux ice.UDPMux,
 	iceTCPMux ice.TCPMux,
 ) (*webrtc.API, error) {
 	settingsEngine := webrtc.SettingEngine{}
+
+	if len(iceInterfaces) != 0 {
+		settingsEngine.SetInterfaceFilter(func(iface string) bool {
+			return stringInSlice(iface, iceInterfaces)
+		})
+	}
 
 	if len(iceHostNAT1To1IPs) != 0 {
 		settingsEngine.SetNAT1To1IPs(iceHostNAT1To1IPs, webrtc.ICECandidateTypeHost)
@@ -217,7 +230,7 @@ func webrtcNewAPI(
 }
 
 type webRTCManagerAPISessionsListRes struct {
-	data *ApiWebRTCSessionsList
+	data *apiWebRTCSessionList
 	err  error
 }
 
@@ -226,7 +239,7 @@ type webRTCManagerAPISessionsListReq struct {
 }
 
 type webRTCManagerAPISessionsGetRes struct {
-	data *ApiWebRTCSession
+	data *apiWebRTCSession
 	err  error
 }
 
@@ -273,12 +286,14 @@ type webRTCAddSessionCandidatesReq struct {
 	res        chan webRTCAddSessionCandidatesRes
 }
 
-type WebRTCManager struct {
+type webRTCManager struct {
 	allowOrigin    string
 	trustedProxies conf.IPsOrCIDRs
 	iceServers     []conf.WebRTCICEServer
 	writeQueueSize int
-	metrics        *Metrics
+
+	pathManager *pathManager
+	metrics     *metrics
 
 	ctx              context.Context
 	ctxCancel        func()
@@ -301,7 +316,7 @@ type WebRTCManager struct {
 	done chan struct{}
 }
 
-func InitWebRTCManager(
+func newWebRTCManager(
 	address string,
 	encryption bool,
 	serverKey string,
@@ -311,18 +326,21 @@ func InitWebRTCManager(
 	iceServers []conf.WebRTCICEServer,
 	readTimeout conf.StringDuration,
 	writeQueueSize int,
+	iceInterfaces []string,
 	iceHostNAT1To1IPs []string,
 	iceUDPMuxAddress string,
 	iceTCPMuxAddress string,
-	metrics *Metrics,
-) error {
+	pathManager *pathManager,
+	metrics *metrics,
+) (*webRTCManager, error) {
 	ctx, ctxCancel := context.WithCancel(context.Background())
 
-	DefaultWebRTCManager = &WebRTCManager{
+	m := &webRTCManager{
 		allowOrigin:            allowOrigin,
 		trustedProxies:         trustedProxies,
 		iceServers:             iceServers,
 		writeQueueSize:         writeQueueSize,
+		pathManager:            pathManager,
 		metrics:                metrics,
 		ctx:                    ctx,
 		ctxCancel:              ctxCancel,
@@ -338,7 +356,7 @@ func InitWebRTCManager(
 	}
 
 	var err error
-	DefaultWebRTCManager.httpServer, err = newWebRTCHTTPServer(
+	m.httpServer, err = newWebRTCHTTPServer(
 		address,
 		encryption,
 		serverKey,
@@ -346,71 +364,72 @@ func InitWebRTCManager(
 		allowOrigin,
 		trustedProxies,
 		readTimeout,
-		DefaultWebRTCManager,
+		pathManager,
+		m,
 	)
-	common.Logger.Info("webrtc http:", address, DefaultWebRTCManager.httpServer)
 	if err != nil {
 		ctxCancel()
-		return err
+		return nil, err
 	}
 
 	var iceUDPMux ice.UDPMux
 
 	if iceUDPMuxAddress != "" {
-		DefaultWebRTCManager.udpMuxLn, err = net.ListenPacket(restrictNetwork("udp", iceUDPMuxAddress))
+		m.udpMuxLn, err = net.ListenPacket(restrictNetwork("udp", iceUDPMuxAddress))
 		if err != nil {
-			DefaultWebRTCManager.httpServer.close()
+			m.httpServer.close()
 			ctxCancel()
-			return err
+			return nil, err
 		}
-		iceUDPMux = webrtc.NewICEUDPMux(nil, DefaultWebRTCManager.udpMuxLn)
+		iceUDPMux = webrtc.NewICEUDPMux(nil, m.udpMuxLn)
 	}
 
 	var iceTCPMux ice.TCPMux
 
 	if iceTCPMuxAddress != "" {
-		DefaultWebRTCManager.tcpMuxLn, err = net.Listen(restrictNetwork("tcp", iceTCPMuxAddress))
+		m.tcpMuxLn, err = net.Listen(restrictNetwork("tcp", iceTCPMuxAddress))
 		if err != nil {
-			DefaultWebRTCManager.udpMuxLn.Close()
-			DefaultWebRTCManager.httpServer.close()
+			m.udpMuxLn.Close()
+			m.httpServer.close()
 			ctxCancel()
-			return err
+			return nil, err
 		}
-		iceTCPMux = webrtc.NewICETCPMux(nil, DefaultWebRTCManager.tcpMuxLn, 8)
+		iceTCPMux = webrtc.NewICETCPMux(nil, m.tcpMuxLn, 8)
 	}
 
-	DefaultWebRTCManager.api, err = webrtcNewAPI(iceHostNAT1To1IPs, iceUDPMux, iceTCPMux)
+	m.api, err = webrtcNewAPI(iceInterfaces, iceHostNAT1To1IPs, iceUDPMux, iceTCPMux)
 	if err != nil {
-		DefaultWebRTCManager.udpMuxLn.Close()
-		DefaultWebRTCManager.tcpMuxLn.Close()
-		DefaultWebRTCManager.httpServer.close()
+		m.udpMuxLn.Close()
+		m.tcpMuxLn.Close()
+		m.httpServer.close()
 		ctxCancel()
-		return err
+		return nil, err
 	}
 
 	str := "listener opened on " + address + " (HTTP)"
-	if DefaultWebRTCManager.udpMuxLn != nil {
+	if m.udpMuxLn != nil {
 		str += ", " + iceUDPMuxAddress + " (ICE/UDP)"
 	}
-	if DefaultWebRTCManager.tcpMuxLn != nil {
+	if m.tcpMuxLn != nil {
 		str += ", " + iceTCPMuxAddress + " (ICE/TCP)"
 	}
+	fmt.Println(str)
 
-	// if m.metrics != nil {
-	// 	m.metrics.WebRTCManagerSet(m)
-	// }
+	if m.metrics != nil {
+		m.metrics.webRTCManagerSet(m)
+	}
 
-	go DefaultWebRTCManager.run()
+	go m.run()
 
-	return nil
+	return m, nil
 }
 
-func (m *WebRTCManager) close() {
+func (m *webRTCManager) close() {
 	m.ctxCancel()
 	<-m.done
 }
 
-func (m *WebRTCManager) run() {
+func (m *webRTCManager) run() {
 	defer close(m.done)
 
 	var wg sync.WaitGroup
@@ -425,6 +444,7 @@ outer:
 				m.api,
 				req,
 				&wg,
+				m.pathManager,
 				m,
 			)
 			m.sessions[sx] = struct{}{}
@@ -445,8 +465,8 @@ outer:
 			req.res <- webRTCAddSessionCandidatesRes{sx: sx}
 
 		case req := <-m.chAPISessionsList:
-			data := &ApiWebRTCSessionsList{
-				Items: []*ApiWebRTCSession{},
+			data := &apiWebRTCSessionList{
+				Items: []*apiWebRTCSession{},
 			}
 
 			for sx := range m.sessions {
@@ -462,7 +482,7 @@ outer:
 		case req := <-m.chAPISessionsGet:
 			sx := m.findSessionByUUID(req.uuid)
 			if sx == nil {
-				req.res <- webRTCManagerAPISessionsGetRes{err: common.ErrAPINotFound}
+				req.res <- webRTCManagerAPISessionsGetRes{err: errAPINotFound}
 				continue
 			}
 
@@ -471,7 +491,7 @@ outer:
 		case req := <-m.chAPIConnsKick:
 			sx := m.findSessionByUUID(req.uuid)
 			if sx == nil {
-				req.res <- webRTCManagerAPISessionsKickRes{err: common.ErrAPINotFound}
+				req.res <- webRTCManagerAPISessionsKickRes{err: errAPINotFound}
 				continue
 			}
 
@@ -500,7 +520,7 @@ outer:
 	}
 }
 
-func (m *WebRTCManager) findSessionByUUID(uuid uuid.UUID) *webRTCSession {
+func (m *webRTCManager) findSessionByUUID(uuid uuid.UUID) *webRTCSession {
 	for sx := range m.sessions {
 		if sx.uuid == uuid {
 			return sx
@@ -509,7 +529,7 @@ func (m *WebRTCManager) findSessionByUUID(uuid uuid.UUID) *webRTCSession {
 	return nil
 }
 
-func (m *WebRTCManager) generateICEServers() ([]webrtc.ICEServer, error) {
+func (m *webRTCManager) generateICEServers() ([]webrtc.ICEServer, error) {
 	ret := make([]webrtc.ICEServer, len(m.iceServers))
 
 	for i, server := range m.iceServers {
@@ -540,7 +560,7 @@ func (m *WebRTCManager) generateICEServers() ([]webrtc.ICEServer, error) {
 }
 
 // newSession is called by webRTCHTTPServer.
-func (m *WebRTCManager) newSession(req webRTCNewSessionReq) webRTCNewSessionRes {
+func (m *webRTCManager) newSession(req webRTCNewSessionReq) webRTCNewSessionRes {
 	req.res = make(chan webRTCNewSessionRes)
 
 	select {
@@ -555,7 +575,7 @@ func (m *WebRTCManager) newSession(req webRTCNewSessionReq) webRTCNewSessionRes 
 }
 
 // closeSession is called by webRTCSession.
-func (m *WebRTCManager) closeSession(sx *webRTCSession) {
+func (m *webRTCManager) closeSession(sx *webRTCSession) {
 	select {
 	case m.chCloseSession <- sx:
 	case <-m.ctx.Done():
@@ -563,7 +583,7 @@ func (m *WebRTCManager) closeSession(sx *webRTCSession) {
 }
 
 // addSessionCandidates is called by webRTCHTTPServer.
-func (m *WebRTCManager) addSessionCandidates(
+func (m *webRTCManager) addSessionCandidates(
 	req webRTCAddSessionCandidatesReq,
 ) webRTCAddSessionCandidatesRes {
 	req.res = make(chan webRTCAddSessionCandidatesRes)
@@ -582,7 +602,7 @@ func (m *WebRTCManager) addSessionCandidates(
 }
 
 // apiSessionsList is called by api.
-func (m *WebRTCManager) apiSessionsList() (*ApiWebRTCSessionsList, error) {
+func (m *webRTCManager) apiSessionsList() (*apiWebRTCSessionList, error) {
 	req := webRTCManagerAPISessionsListReq{
 		res: make(chan webRTCManagerAPISessionsListRes),
 	}
@@ -598,7 +618,7 @@ func (m *WebRTCManager) apiSessionsList() (*ApiWebRTCSessionsList, error) {
 }
 
 // apiSessionsGet is called by api.
-func (m *WebRTCManager) apiSessionsGet(uuid uuid.UUID) (*ApiWebRTCSession, error) {
+func (m *webRTCManager) apiSessionsGet(uuid uuid.UUID) (*apiWebRTCSession, error) {
 	req := webRTCManagerAPISessionsGetReq{
 		uuid: uuid,
 		res:  make(chan webRTCManagerAPISessionsGetRes),
@@ -615,7 +635,7 @@ func (m *WebRTCManager) apiSessionsGet(uuid uuid.UUID) (*ApiWebRTCSession, error
 }
 
 // apiSessionsKick is called by api.
-func (m *WebRTCManager) apiSessionsKick(uuid uuid.UUID) error {
+func (m *webRTCManager) apiSessionsKick(uuid uuid.UUID) error {
 	req := webRTCManagerAPISessionsKickReq{
 		uuid: uuid,
 		res:  make(chan webRTCManagerAPISessionsKickRes),

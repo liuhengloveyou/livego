@@ -105,11 +105,11 @@ srtAddress: :8890
 ###############################################
 # Path settings
 paths:
-  # camera1:
-  #   source: rtsp://admin:Abc123456@192.168.100.234:554/Streaming/Channels/101
-  dahua:
-    source: rtsp://admin:admin123@192.168.100.234:554/cam/realmonitor?channel=1&subtype=0
-    sourceOnDemand: no
+  camera1:
+    source: rtsp://admin:Abc123456@192.168.100.234:554/Streaming/Channels/101
+  # dahua:
+  #   source: rtsp://admin:admin123@192.168.100.234:554/cam/realmonitor?channel=1&subtype=0
+  #   sourceOnDemand: no
   # dahua1:
   #   source: rtsp://admin:admin123@192.168.168.101:554/cam/realmonitor?channel=1&subtype=0
   all:

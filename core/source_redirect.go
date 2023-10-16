@@ -1,11 +1,11 @@
 package core
 
 // sourceRedirect is a source that redirects to another one.
-type SourceRedirect struct{}
+type sourceRedirect struct{}
 
-// ApiSourceDescribe implements source.
-func (*SourceRedirect) ApiSourceDescribe() PathAPISourceOrReader {
-	return PathAPISourceOrReader{
+// apiSourceDescribe implements source.
+func (*sourceRedirect) apiSourceDescribe() apiPathSourceOrReader {
+	return apiPathSourceOrReader{
 		Type: "redirect",
 		ID:   "",
 	}

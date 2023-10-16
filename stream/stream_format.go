@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/pion/rtp"
 
 	"github.com/liuhengloveyou/livego/asyncwriter"
-	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/formatprocessor"
 	"github.com/liuhengloveyou/livego/unit"
 )
@@ -54,14 +54,34 @@ func (sf *streamFormat) removeReader(r *asyncwriter.Writer) {
 }
 
 func (sf *streamFormat) writeUnit(s *Stream, medi *description.Media, u unit.Unit) {
-	hasNonRTSPReaders := len(sf.readers) > 0
-
-	err := sf.proc.Process(u, hasNonRTSPReaders)
+	err := sf.proc.ProcessUnit(u)
 	if err != nil {
-		common.Logger.Error(err.Error())
+		fmt.Println(err.Error())
 		return
 	}
 
+	sf.writeUnitInner(s, medi, u)
+}
+
+func (sf *streamFormat) writeRTPPacket(
+	s *Stream,
+	medi *description.Media,
+	pkt *rtp.Packet,
+	ntp time.Time,
+	pts time.Duration,
+) {
+	hasNonRTSPReaders := len(sf.readers) > 0
+
+	u, err := sf.proc.ProcessRTPPacket(pkt, ntp, pts, hasNonRTSPReaders)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	sf.writeUnitInner(s, medi, u)
+}
+
+func (sf *streamFormat) writeUnitInner(s *Stream, medi *description.Media, u unit.Unit) {
 	atomic.AddUint64(s.bytesReceived, unitSize(u))
 
 	if s.rtspStream != nil {
@@ -82,14 +102,4 @@ func (sf *streamFormat) writeUnit(s *Stream, medi *description.Media, u unit.Uni
 			return ccb(u)
 		})
 	}
-}
-
-func (sf *streamFormat) writeRTPPacket(
-	s *Stream,
-	medi *description.Media,
-	pkt *rtp.Packet,
-	ntp time.Time,
-	pts time.Duration,
-) {
-	sf.writeUnit(s, medi, sf.proc.UnitForRTPPacket(pkt, ntp, pts))
 }

@@ -13,11 +13,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/pion/rtp"
 
-	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
-	"github.com/liuhengloveyou/livego/externalcmd"
 	"github.com/liuhengloveyou/livego/stream"
 )
+
+type rtspSessionPathManager interface {
+	addPublisher(req pathAddPublisherReq) pathAddPublisherRes
+	addReader(req pathAddReaderReq) pathAddReaderRes
+}
 
 type rtspSessionParent interface {
 	getISTLS() bool
@@ -25,18 +28,17 @@ type rtspSessionParent interface {
 }
 
 type rtspSession struct {
-	isTLS           bool
-	protocols       map[conf.Protocol]struct{}
-	session         *gortsplib.ServerSession
-	author          *gortsplib.ServerConn
-	externalCmdPool *externalcmd.Pool
-	parent          rtspSessionParent
+	isTLS       bool
+	protocols   map[conf.Protocol]struct{}
+	session     *gortsplib.ServerSession
+	author      *gortsplib.ServerConn
+	pathManager rtspSessionPathManager
+	parent      rtspSessionParent
 
 	uuid      uuid.UUID
 	created   time.Time
-	path      *Path
+	path      *path
 	stream    *stream.Stream
-	onReadCmd *externalcmd.Cmd // read
 	mutex     sync.Mutex
 	state     gortsplib.ServerSessionState
 	transport *gortsplib.Transport
@@ -48,21 +50,19 @@ func newRTSPSession(
 	protocols map[conf.Protocol]struct{},
 	session *gortsplib.ServerSession,
 	sc *gortsplib.ServerConn,
-	externalCmdPool *externalcmd.Pool,
+	pathManager rtspSessionPathManager,
 	parent rtspSessionParent,
 ) *rtspSession {
 	s := &rtspSession{
-		isTLS:           isTLS,
-		protocols:       protocols,
-		session:         session,
-		author:          sc,
-		externalCmdPool: externalCmdPool,
-		parent:          parent,
-		uuid:            uuid.New(),
-		created:         time.Now(),
+		isTLS:       isTLS,
+		protocols:   protocols,
+		session:     session,
+		author:      sc,
+		pathManager: pathManager,
+		parent:      parent,
+		uuid:        uuid.New(),
+		created:     time.Now(),
 	}
-
-	common.Logger.Info("created by %v", s.author.NetConn().RemoteAddr())
 
 	return s
 }
@@ -76,28 +76,31 @@ func (s *rtspSession) remoteAddr() net.Addr {
 	return s.author.NetConn().RemoteAddr()
 }
 
+func (s *rtspSession) onUnread() {
+	if s.path.conf.RunOnUnread != "" {
+		env := s.path.externalCmdEnv()
+		desc := s.apiReaderDescribe()
+		env["MTX_READER_TYPE"] = desc.Type
+		env["MTX_READER_ID"] = desc.ID
+	}
+}
+
 // onClose is called by rtspServer.
 func (s *rtspSession) onClose(err error) {
 	if s.session.State() == gortsplib.ServerSessionStatePlay {
-		if s.onReadCmd != nil {
-			s.onReadCmd.Close()
-			s.onReadCmd = nil
-			common.Logger.Info("runOnRead command stopped")
-		}
+		s.onUnread()
 	}
 
 	switch s.session.State() {
 	case gortsplib.ServerSessionStatePrePlay, gortsplib.ServerSessionStatePlay:
-		s.path.removeReader(PathRemoveReaderReq{author: s})
+		s.path.removeReader(pathRemoveReaderReq{author: s})
 
 	case gortsplib.ServerSessionStatePreRecord, gortsplib.ServerSessionStateRecord:
-		s.path.removePublisher(PathRemovePublisherReq{author: s})
+		s.path.removePublisher(pathRemovePublisherReq{author: s})
 	}
 
 	s.path = nil
 	s.stream = nil
-
-	common.Logger.Info("destroyed (%v)", err)
 }
 
 // onAnnounce is called by rtspServer.
@@ -119,17 +122,17 @@ func (s *rtspSession) onAnnounce(c *rtspConn, ctx *gortsplib.ServerHandlerOnAnno
 		}
 	}
 
-	res := DefaultPathManager.addPublisher(PathAddPublisherReq{
-		Author:   s,
-		PathName: ctx.Path,
-		Credentials: AuthCredentials{
-			Query:       ctx.Query,
-			Ip:          c.ip(),
-			Proto:       authProtocolRTSP,
-			ID:          &c.uuid,
-			RtspRequest: ctx.Request,
-			RtspBaseURL: nil,
-			RtspNonce:   c.authNonce,
+	res := s.pathManager.addPublisher(pathAddPublisherReq{
+		author:   s,
+		pathName: ctx.Path,
+		credentials: authCredentials{
+			query:       ctx.Query,
+			ip:          c.ip(),
+			proto:       authProtocolRTSP,
+			id:          &c.uuid,
+			rtspRequest: ctx.Request,
+			rtspBaseURL: nil,
+			rtspNonce:   c.authNonce,
 		},
 	})
 
@@ -145,7 +148,7 @@ func (s *rtspSession) onAnnounce(c *rtspConn, ctx *gortsplib.ServerHandlerOnAnno
 		}
 	}
 
-	s.path = res.Path
+	s.path = res.path
 
 	s.mutex.Lock()
 	s.state = gortsplib.ServerSessionStatePreRecord
@@ -204,17 +207,17 @@ func (s *rtspSession) onSetup(c *rtspConn, ctx *gortsplib.ServerHandlerOnSetupCt
 			}
 		}
 
-		res := DefaultPathManager.addReader(PathAddReaderReq{
-			Author:   s,
-			PathName: ctx.Path,
-			Credentials: AuthCredentials{
-				Query:       ctx.Query,
-				Ip:          c.ip(),
-				Proto:       authProtocolRTSP,
-				ID:          &c.uuid,
-				RtspRequest: ctx.Request,
-				RtspBaseURL: baseURL,
-				RtspNonce:   c.authNonce,
+		res := s.pathManager.addReader(pathAddReaderReq{
+			author:   s,
+			pathName: ctx.Path,
+			credentials: authCredentials{
+				query:       ctx.Query,
+				ip:          c.ip(),
+				proto:       authProtocolRTSP,
+				id:          &c.uuid,
+				rtspRequest: ctx.Request,
+				rtspBaseURL: baseURL,
+				rtspNonce:   c.authNonce,
 			},
 		})
 
@@ -236,7 +239,7 @@ func (s *rtspSession) onSetup(c *rtspConn, ctx *gortsplib.ServerHandlerOnSetupCt
 			}
 		}
 
-		s.path = res.Path
+		s.path = res.path
 		s.stream = res.stream
 
 		s.mutex.Lock()
@@ -267,23 +270,20 @@ func (s *rtspSession) onPlay(_ *gortsplib.ServerHandlerOnPlayCtx) (*base.Respons
 	h := make(base.Header)
 
 	if s.session.State() == gortsplib.ServerSessionStatePrePlay {
-		common.Logger.Info("is reading from path '%s', with %s, %s",
+		fmt.Println("is reading from path '%s', with %s, %s",
 			s.path.name,
 			s.session.SetuppedTransport(),
-			SourceMediaInfo(s.session.SetuppedMedias()))
+			mediaInfo(s.session.SetuppedMedias()))
 
 		pathConf := s.path.safeConf()
 
 		if pathConf.RunOnRead != "" {
-			common.Logger.Info("runOnRead command started")
-			s.onReadCmd = externalcmd.NewCmd(
-				s.externalCmdPool,
-				pathConf.RunOnRead,
-				pathConf.RunOnReadRestart,
-				s.path.externalCmdEnv(),
-				func(err error) {
-					common.Logger.Info("runOnRead command exited: %v", err)
-				})
+			env := s.path.externalCmdEnv()
+			desc := s.apiReaderDescribe()
+			env["MTX_READER_TYPE"] = desc.Type
+			env["MTX_READER_ID"] = desc.ID
+
+			fmt.Println("runOnRead command started")
 		}
 
 		s.mutex.Lock()
@@ -300,7 +300,7 @@ func (s *rtspSession) onPlay(_ *gortsplib.ServerHandlerOnPlayCtx) (*base.Respons
 
 // onRecord is called by rtspServer.
 func (s *rtspSession) onRecord(_ *gortsplib.ServerHandlerOnRecordCtx) (*base.Response, error) {
-	res := s.path.startPublisher(PathStartPublisherReq{
+	res := s.path.startPublisher(pathStartPublisherReq{
 		author:             s,
 		desc:               s.session.AnnouncedDescription(),
 		generateRTPPackets: false,
@@ -343,17 +343,14 @@ func (s *rtspSession) onRecord(_ *gortsplib.ServerHandlerOnRecordCtx) (*base.Res
 func (s *rtspSession) onPause(_ *gortsplib.ServerHandlerOnPauseCtx) (*base.Response, error) {
 	switch s.session.State() {
 	case gortsplib.ServerSessionStatePlay:
-		if s.onReadCmd != nil {
-			common.Logger.Info("runOnRead command stopped")
-			s.onReadCmd.Close()
-		}
+		s.onUnread()
 
 		s.mutex.Lock()
 		s.state = gortsplib.ServerSessionStatePrePlay
 		s.mutex.Unlock()
 
 	case gortsplib.ServerSessionStateRecord:
-		s.path.stopPublisher(PathStopPublisherReq{author: s})
+		s.path.stopPublisher(pathStopPublisherReq{author: s})
 
 		s.mutex.Lock()
 		s.state = gortsplib.ServerSessionStatePreRecord
@@ -366,8 +363,8 @@ func (s *rtspSession) onPause(_ *gortsplib.ServerHandlerOnPauseCtx) (*base.Respo
 }
 
 // apiReaderDescribe implements reader.
-func (s *rtspSession) apiReaderDescribe() PathAPISourceOrReader {
-	return PathAPISourceOrReader{
+func (s *rtspSession) apiReaderDescribe() apiPathSourceOrReader {
+	return apiPathSourceOrReader{
 		Type: func() string {
 			if s.isTLS {
 				return "rtspsSession"
@@ -378,24 +375,24 @@ func (s *rtspSession) apiReaderDescribe() PathAPISourceOrReader {
 	}
 }
 
-// ApiSourceDescribe implements source.
-func (s *rtspSession) ApiSourceDescribe() PathAPISourceOrReader {
+// apiSourceDescribe implements source.
+func (s *rtspSession) apiSourceDescribe() apiPathSourceOrReader {
 	return s.apiReaderDescribe()
 }
 
 // onPacketLost is called by rtspServer.
 func (s *rtspSession) onPacketLost(ctx *gortsplib.ServerHandlerOnPacketLostCtx) {
-	common.Logger.Warn(ctx.Error.Error())
+	fmt.Println(ctx.Error.Error())
 }
 
 // onDecodeError is called by rtspServer.
 func (s *rtspSession) onDecodeError(ctx *gortsplib.ServerHandlerOnDecodeErrorCtx) {
-	common.Logger.Warn(ctx.Error.Error())
+	fmt.Println(ctx.Error.Error())
 }
 
 // onStreamWriteError is called by rtspServer.
 func (s *rtspSession) onStreamWriteError(ctx *gortsplib.ServerHandlerOnStreamWriteErrorCtx) {
-	common.Logger.Warn(ctx.Error.Error())
+	fmt.Println(ctx.Error.Error())
 }
 
 func (s *rtspSession) apiItem() *apiRTSPSession {

@@ -12,8 +12,8 @@ import (
 // - a publisher
 // - sourceStatic
 // - sourceRedirect
-type Source interface {
-	ApiSourceDescribe() PathAPISourceOrReader
+type source interface {
+	apiSourceDescribe() apiPathSourceOrReader
 }
 
 func mediaDescription(media *description.Media) string {
@@ -32,7 +32,7 @@ func mediasDescription(medias []*description.Media) []string {
 	return ret
 }
 
-func SourceMediaInfo(medias []*description.Media) string {
+func mediaInfo(medias []*description.Media) string {
 	return fmt.Sprintf("%d %s (%s)",
 		len(medias),
 		func() string {

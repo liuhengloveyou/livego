@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	s, ok := core.New(os.Args[1:])
+	s, ok := core.New("livego.yml")
 	if !ok {
 		os.Exit(1)
 	}

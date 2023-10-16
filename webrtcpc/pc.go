@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/pion/webrtc/v3"
 )
@@ -23,10 +22,7 @@ type PeerConnection struct {
 }
 
 // New allocates a PeerConnection.
-func New(
-	iceServers []webrtc.ICEServer,
-	api *webrtc.API,
-) (*PeerConnection, error) {
+func New(iceServers []webrtc.ICEServer, api *webrtc.API) (*PeerConnection, error) {
 	configuration := webrtc.Configuration{ICEServers: iceServers}
 
 	pc, err := api.NewPeerConnection(configuration)
@@ -53,9 +49,15 @@ func New(
 		default:
 		}
 
+		fmt.Println("peer connection state: " + state.String())
+
 		switch state {
 		case webrtc.PeerConnectionStateConnected:
+			fmt.Println("peer connection established, local candidate: %v, remote candidate: %v",
+				co.LocalCandidate(), co.RemoteCandidate())
+
 			close(co.connected)
+
 		case webrtc.PeerConnectionStateDisconnected:
 			close(co.disconnected)
 
@@ -77,30 +79,6 @@ func New(
 		}
 	})
 
-	// Register data channel creation handling
-	pc.OnDataChannel(func(d *webrtc.DataChannel) {
-		fmt.Printf("New DataChannel %s %d\n", d.Label(), d.ID())
-
-		// Register channel opening handling
-		d.OnOpen(func() {
-			fmt.Printf("Data channel '%s'-'%d' open. Random messages will now be sent to any connected DataChannels every 5 seconds\n", d.Label(), d.ID())
-
-			for range time.NewTicker(5 * time.Second).C {
-
-				// Send the message as text
-				sendErr := d.SendText(time.Now().GoString())
-				if sendErr != nil {
-					panic(sendErr)
-				}
-			}
-		})
-
-		// Register text message handling
-		d.OnMessage(func(msg webrtc.DataChannelMessage) {
-			fmt.Printf("Message from DataChannel '%s': '%s'\n", d.Label(), string(msg.Data))
-		})
-
-	})
 	return co, nil
 }
 

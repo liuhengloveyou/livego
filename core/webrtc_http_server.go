@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/pion/webrtc/v3"
 
-	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/httpserv"
 	"github.com/liuhengloveyou/livego/whip"
@@ -33,6 +32,7 @@ type webRTCHTTPServerParent interface {
 
 type webRTCHTTPServer struct {
 	allowOrigin string
+	pathManager *pathManager
 	parent      webRTCHTTPServerParent
 
 	inner *httpserv.WrappedServer
@@ -46,6 +46,7 @@ func newWebRTCHTTPServer( //nolint:dupl
 	allowOrigin string,
 	trustedProxies conf.IPsOrCIDRs,
 	readTimeout conf.StringDuration,
+	pathManager *pathManager,
 	parent webRTCHTTPServerParent,
 ) (*webRTCHTTPServer, error) {
 	if encryption {
@@ -59,6 +60,7 @@ func newWebRTCHTTPServer( //nolint:dupl
 
 	s := &webRTCHTTPServer{
 		allowOrigin: allowOrigin,
+		pathManager: pathManager,
 		parent:      parent,
 	}
 
@@ -75,7 +77,8 @@ func newWebRTCHTTPServer( //nolint:dupl
 		time.Duration(readTimeout),
 		serverCert,
 		serverKey,
-		router)
+		router,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -160,15 +163,15 @@ func (s *webRTCHTTPServer) onRequest(ctx *gin.Context) {
 
 	// if request doesn't belong to a session, check authentication here
 	if !isWHIPorWHEP || ctx.Request.Method == http.MethodOptions {
-		res := DefaultPathManager.getConfForPath(PathGetConfForPathReq{
+		res := s.pathManager.getConfForPath(pathGetConfForPathReq{
 			name:    dir,
 			publish: publish,
-			credentials: AuthCredentials{
-				Query: ctx.Request.URL.RawQuery,
-				Ip:    net.ParseIP(ip),
-				User:  user,
-				Pass:  pass,
-				Proto: AuthProtocolWebRTC,
+			credentials: authCredentials{
+				query: ctx.Request.URL.RawQuery,
+				ip:    net.ParseIP(ip),
+				user:  user,
+				pass:  pass,
+				proto: authProtocolWebRTC,
 			},
 		})
 		if res.err != nil {
@@ -179,7 +182,7 @@ func (s *webRTCHTTPServer) onRequest(ctx *gin.Context) {
 					return
 				}
 
-				common.Logger.Info("connection %v failed to authenticate: %v", remoteAddr, terr.message)
+				fmt.Println("connection %v failed to authenticate: %v", remoteAddr, terr.message)
 
 				// wait some seconds to stop brute force attacks
 				<-time.After(webrtcPauseAfterAuthError)
@@ -192,8 +195,6 @@ func (s *webRTCHTTPServer) onRequest(ctx *gin.Context) {
 			return
 		}
 	}
-
-	common.Logger.Info("", "dir", dir, "fname", fname, "publish", publish, "method", ctx.Request.Method)
 
 	switch fname {
 	case "":
@@ -219,6 +220,7 @@ func (s *webRTCHTTPServer) onRequest(ctx *gin.Context) {
 
 			ctx.Writer.Header().Set("Access-Control-Allow-Methods", "OPTIONS, GET, POST, PATCH")
 			ctx.Writer.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, If-Match")
+			ctx.Writer.Header().Set("Access-Control-Expose-Headers", "Link")
 			ctx.Writer.Header()["Link"] = whip.LinkHeaderMarshal(servers)
 			ctx.Writer.WriteHeader(http.StatusNoContent)
 
@@ -254,8 +256,8 @@ func (s *webRTCHTTPServer) onRequest(ctx *gin.Context) {
 			}
 
 			ctx.Writer.Header().Set("Content-Type", "application/sdp")
-			ctx.Writer.Header().Set("Access-Control-Expose-Headers", "E-Tag, Accept-Patch, Link")
-			ctx.Writer.Header().Set("E-Tag", res.sx.secret.String())
+			ctx.Writer.Header().Set("Access-Control-Expose-Headers", "ETag, Accept-Patch, Link, Location")
+			ctx.Writer.Header().Set("ETag", res.sx.secret.String())
 			ctx.Writer.Header().Set("ID", res.sx.uuid.String())
 			ctx.Writer.Header().Set("Accept-Patch", "application/trickle-ice-sdpfrag")
 			ctx.Writer.Header()["Link"] = whip.LinkHeaderMarshal(servers)

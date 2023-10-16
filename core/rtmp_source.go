@@ -11,7 +11,6 @@ import (
 	"github.com/bluenviron/gortsplib/v4/pkg/description"
 	"github.com/bluenviron/gortsplib/v4/pkg/format"
 
-	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/rtmp"
 	"github.com/liuhengloveyou/livego/stream"
@@ -19,8 +18,8 @@ import (
 )
 
 type rtmpSourceParent interface {
-	SetReady(req PathSourceStaticSetReadyReq) PathSourceStaticSetReadyRes
-	SetNotReady(req PathSourceStaticSetNotReadyReq)
+	setReady(req pathSourceStaticSetReadyReq) pathSourceStaticSetReadyRes
+	setNotReady(req pathSourceStaticSetNotReadyReq)
 }
 
 type rtmpSource struct {
@@ -42,8 +41,7 @@ func newRTMPSource(
 }
 
 // run implements sourceStaticImpl.
-func (s *rtmpSource) Run(ctx context.Context, cnf *conf.PathConf, reloadConf chan *conf.PathConf) error {
-	common.Logger.Debug("connecting")
+func (s *rtmpSource) run(ctx context.Context, cnf *conf.Path, reloadConf chan *conf.Path) error {
 
 	u, err := url.Parse(cnf.Source)
 	if err != nil {
@@ -143,9 +141,9 @@ func (s *rtmpSource) runReader(u *url.URL, nconn net.Conn) error {
 		medias = append(medias, audioMedia)
 
 		switch audioFormat.(type) {
-		case *format.MPEG4AudioGeneric:
+		case *format.MPEG4Audio:
 			mc.OnDataMPEG4Audio(func(pts time.Duration, au []byte) {
-				stream.WriteUnit(audioMedia, audioFormat, &unit.MPEG4AudioGeneric{
+				stream.WriteUnit(audioMedia, audioFormat, &unit.MPEG4Audio{
 					Base: unit.Base{
 						NTP: time.Now(),
 						PTS: pts,
@@ -170,15 +168,15 @@ func (s *rtmpSource) runReader(u *url.URL, nconn net.Conn) error {
 		}
 	}
 
-	res := s.parent.SetReady(PathSourceStaticSetReadyReq{
-		Desc:               &description.Session{Medias: medias},
-		GenerateRTPPackets: true,
+	res := s.parent.setReady(pathSourceStaticSetReadyReq{
+		desc:               &description.Session{Medias: medias},
+		generateRTPPackets: true,
 	})
 	if res.err != nil {
 		return res.err
 	}
 
-	defer s.parent.SetNotReady(PathSourceStaticSetNotReadyReq{})
+	defer s.parent.setNotReady(pathSourceStaticSetNotReadyReq{})
 
 	stream = res.stream
 
@@ -194,9 +192,9 @@ func (s *rtmpSource) runReader(u *url.URL, nconn net.Conn) error {
 	}
 }
 
-// ApiSourceDescribe implements sourceStaticImpl.
-func (*rtmpSource) ApiSourceDescribe() PathAPISourceOrReader {
-	return PathAPISourceOrReader{
+// apiSourceDescribe implements sourceStaticImpl.
+func (*rtmpSource) apiSourceDescribe() apiPathSourceOrReader {
+	return apiPathSourceOrReader{
 		Type: "rtmpSource",
 		ID:   "",
 	}

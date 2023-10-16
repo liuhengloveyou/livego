@@ -10,13 +10,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
-	"github.com/liuhengloveyou/livego/externalcmd"
 )
 
 type rtmpServerAPIConnsListRes struct {
-	data *apiRTMPConnsList
+	data *apiRTMPConnList
 	err  error
 }
 
@@ -51,8 +49,9 @@ type rtmpServer struct {
 	rtspAddress         string
 	runOnConnect        string
 	runOnConnectRestart bool
-	externalCmdPool     *externalcmd.Pool
-	metrics             *Metrics
+	runOnDisconnect     string
+	metrics             *metrics
+	pathManager         *pathManager
 
 	ctx       context.Context
 	ctxCancel func()
@@ -80,12 +79,13 @@ func newRTMPServer(
 	rtspAddress string,
 	runOnConnect string,
 	runOnConnectRestart bool,
-	externalCmdPool *externalcmd.Pool,
-	metrics *Metrics,
+	runOnDisconnect string,
+	metrics *metrics,
+	pathManager *pathManager,
 ) (*rtmpServer, error) {
 	ln, err := func() (net.Listener, error) {
 		if !isTLS {
-			return net.Listen(RestrictNetwork("tcp", address))
+			return net.Listen(restrictNetwork("tcp", address))
 		}
 
 		cert, err := tls.LoadX509KeyPair(serverCert, serverKey)
@@ -93,7 +93,7 @@ func newRTMPServer(
 			return nil, err
 		}
 
-		network, address := RestrictNetwork("tcp", address)
+		network, address := restrictNetwork("tcp", address)
 		return tls.Listen(network, address, &tls.Config{Certificates: []tls.Certificate{cert}})
 	}()
 	if err != nil {
@@ -109,9 +109,10 @@ func newRTMPServer(
 		rtspAddress:         rtspAddress,
 		runOnConnect:        runOnConnect,
 		runOnConnectRestart: runOnConnectRestart,
+		runOnDisconnect:     runOnDisconnect,
 		isTLS:               isTLS,
-		externalCmdPool:     externalCmdPool,
 		metrics:             metrics,
+		pathManager:         pathManager,
 		ctx:                 ctx,
 		ctxCancel:           ctxCancel,
 		ln:                  ln,
@@ -123,8 +124,6 @@ func newRTMPServer(
 		chAPIConnsGet:       make(chan rtmpServerAPIConnsGetReq),
 		chAPIConnsKick:      make(chan rtmpServerAPIConnsKickReq),
 	}
-
-	common.Logger.Info("listener opened on %s", address)
 
 	if s.metrics != nil {
 		s.metrics.rtmpServerSet(s)
@@ -143,7 +142,6 @@ func newRTMPServer(
 }
 
 func (s *rtmpServer) close() {
-	common.Logger.Info("listener is closing")
 	s.ctxCancel()
 	s.wg.Wait()
 }
@@ -155,7 +153,7 @@ outer:
 	for {
 		select {
 		case err := <-s.chAcceptErr:
-			common.Logger.Error("%s", err)
+			fmt.Println(err)
 			break outer
 
 		case nconn := <-s.chNewConn:
@@ -168,9 +166,10 @@ outer:
 				s.writeQueueSize,
 				s.runOnConnect,
 				s.runOnConnectRestart,
+				s.runOnDisconnect,
 				&s.wg,
 				nconn,
-				s.externalCmdPool,
+				s.pathManager,
 				s)
 			s.conns[c] = struct{}{}
 
@@ -178,7 +177,7 @@ outer:
 			delete(s.conns, c)
 
 		case req := <-s.chAPIConnsList:
-			data := &apiRTMPConnsList{
+			data := &apiRTMPConnList{
 				Items: []*apiRTMPConn{},
 			}
 
@@ -195,7 +194,7 @@ outer:
 		case req := <-s.chAPIConnsGet:
 			c := s.findConnByUUID(req.uuid)
 			if c == nil {
-				req.res <- rtmpServerAPIConnsGetRes{err: common.ErrAPINotFound}
+				req.res <- rtmpServerAPIConnsGetRes{err: errAPINotFound}
 				continue
 			}
 
@@ -204,7 +203,7 @@ outer:
 		case req := <-s.chAPIConnsKick:
 			c := s.findConnByUUID(req.uuid)
 			if c == nil {
-				req.res <- rtmpServerAPIConnsKickRes{err: common.ErrAPINotFound}
+				req.res <- rtmpServerAPIConnsKickRes{err: errAPINotFound}
 				continue
 			}
 
@@ -261,7 +260,7 @@ func (s *rtmpServer) closeConn(c *rtmpConn) {
 }
 
 // apiConnsList is called by api.
-func (s *rtmpServer) apiConnsList() (*apiRTMPConnsList, error) {
+func (s *rtmpServer) apiConnsList() (*apiRTMPConnList, error) {
 	req := rtmpServerAPIConnsListReq{
 		res: make(chan rtmpServerAPIConnsListRes),
 	}

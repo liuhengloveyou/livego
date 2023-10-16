@@ -18,9 +18,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/liuhengloveyou/livego/asyncwriter"
-	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
-	"github.com/liuhengloveyou/livego/externalcmd"
 	"github.com/liuhengloveyou/livego/rtmp"
 	"github.com/liuhengloveyou/livego/stream"
 	"github.com/liuhengloveyou/livego/unit"
@@ -45,34 +43,33 @@ const (
 	rtmpConnStatePublish
 )
 
-// type rtmpConnPathManager interface {
-// 	addReader(req PathAddReaderReq) PathAddReaderRes
-// 	addPublisher(req PathAddPublisherReq) PathAddPublisherRes
-// }
+type rtmpConnPathManager interface {
+	addReader(req pathAddReaderReq) pathAddReaderRes
+	addPublisher(req pathAddPublisherReq) pathAddPublisherRes
+}
 
 type rtmpConnParent interface {
 	closeConn(*rtmpConn)
 }
 
 type rtmpConn struct {
-	isTLS               bool
-	rtspAddress         string
-	readTimeout         conf.StringDuration
-	writeTimeout        conf.StringDuration
-	writeQueueSize      int
-	runOnConnect        string
-	runOnConnectRestart bool
-	wg                  *sync.WaitGroup
-	nconn               net.Conn
-	externalCmdPool     *externalcmd.Pool
-	parent              rtmpConnParent
+	*conn
+
+	isTLS          bool
+	readTimeout    conf.StringDuration
+	writeTimeout   conf.StringDuration
+	writeQueueSize int
+	wg             *sync.WaitGroup
+	nconn          net.Conn
+	pathManager    rtmpConnPathManager
+	parent         rtmpConnParent
 
 	ctx       context.Context
 	ctxCancel func()
 	uuid      uuid.UUID
 	created   time.Time
 	mutex     sync.RWMutex
-	conn      *rtmp.Conn
+	rconn     *rtmp.Conn
 	state     rtmpConnState
 	pathName  string
 }
@@ -86,32 +83,30 @@ func newRTMPConn(
 	writeQueueSize int,
 	runOnConnect string,
 	runOnConnectRestart bool,
+	runOnDisconnect string,
 	wg *sync.WaitGroup,
 	nconn net.Conn,
-	externalCmdPool *externalcmd.Pool,
+	pathManager rtmpConnPathManager,
 	parent rtmpConnParent,
 ) *rtmpConn {
 	ctx, ctxCancel := context.WithCancel(parentCtx)
 
 	c := &rtmpConn{
-		isTLS:               isTLS,
-		rtspAddress:         rtspAddress,
-		readTimeout:         readTimeout,
-		writeTimeout:        writeTimeout,
-		writeQueueSize:      writeQueueSize,
-		runOnConnect:        runOnConnect,
-		runOnConnectRestart: runOnConnectRestart,
-		wg:                  wg,
-		nconn:               nconn,
-		externalCmdPool:     externalCmdPool,
-		parent:              parent,
-		ctx:                 ctx,
-		ctxCancel:           ctxCancel,
-		uuid:                uuid.New(),
-		created:             time.Now(),
+		isTLS:          isTLS,
+		readTimeout:    readTimeout,
+		writeTimeout:   writeTimeout,
+		writeQueueSize: writeQueueSize,
+		wg:             wg,
+		nconn:          nconn,
+		pathManager:    pathManager,
+		parent:         parent,
+		ctx:            ctx,
+		ctxCancel:      ctxCancel,
+		uuid:           uuid.New(),
+		created:        time.Now(),
 	}
 
-	common.Logger.Info("opened")
+	c.conn = newConn(rtspAddress)
 
 	c.wg.Add(1)
 	go c.run()
@@ -131,38 +126,18 @@ func (c *rtmpConn) ip() net.IP {
 	return c.nconn.RemoteAddr().(*net.TCPAddr).IP
 }
 
-func (c *rtmpConn) run() {
+func (c *rtmpConn) run() { //nolint:dupl
 	defer c.wg.Done()
 
-	if c.runOnConnect != "" {
-		common.Logger.Info("runOnConnect command started")
-		_, port, _ := net.SplitHostPort(c.rtspAddress)
-		onConnectCmd := externalcmd.NewCmd(
-			c.externalCmdPool,
-			c.runOnConnect,
-			c.runOnConnectRestart,
-			externalcmd.Environment{
-				"MTX_PATH":  "",
-				"RTSP_PATH": "", // deprecated
-				"RTSP_PORT": port,
-			},
-			func(err error) {
-				common.Logger.Info("runOnConnect command exited: %v", err)
-			})
+	desc := c.apiReaderDescribe()
+	c.conn.open(desc)
+	defer c.conn.close(desc)
 
-		defer func() {
-			onConnectCmd.Close()
-			common.Logger.Info("runOnConnect command stopped")
-		}()
-	}
-
-	err := c.runInner()
+	c.runInner()
 
 	c.ctxCancel()
 
 	c.parent.closeConn(c)
-
-	common.Logger.Info("closed (%v)", err)
 }
 
 func (c *rtmpConn) runInner() error {
@@ -192,7 +167,7 @@ func (c *rtmpConn) runReader() error {
 	}
 
 	c.mutex.Lock()
-	c.conn = conn
+	c.rconn = conn
 	c.mutex.Unlock()
 
 	if !publish {
@@ -204,16 +179,16 @@ func (c *rtmpConn) runReader() error {
 func (c *rtmpConn) runRead(conn *rtmp.Conn, u *url.URL) error {
 	pathName, query, rawQuery := pathNameAndQuery(u)
 
-	res := DefaultPathManager.addReader(PathAddReaderReq{
-		Author:   c,
-		PathName: pathName,
-		Credentials: AuthCredentials{
-			Query: rawQuery,
-			Ip:    c.ip(),
-			User:  query.Get("user"),
-			Pass:  query.Get("pass"),
-			Proto: authProtocolRTMP,
-			ID:    &c.uuid,
+	res := c.pathManager.addReader(pathAddReaderReq{
+		author:   c,
+		pathName: pathName,
+		credentials: authCredentials{
+			query: rawQuery,
+			ip:    c.ip(),
+			user:  query.Get("user"),
+			pass:  query.Get("pass"),
+			proto: authProtocolRTMP,
+			id:    &c.uuid,
 		},
 	})
 
@@ -226,7 +201,7 @@ func (c *rtmpConn) runRead(conn *rtmp.Conn, u *url.URL) error {
 		return res.err
 	}
 
-	defer res.Path.removeReader(PathRemoveReaderReq{author: c})
+	defer res.path.removeReader(pathRemoveReaderReq{author: c})
 
 	c.mutex.Lock()
 	c.state = rtmpConnStateRead
@@ -237,48 +212,62 @@ func (c *rtmpConn) runRead(conn *rtmp.Conn, u *url.URL) error {
 
 	defer res.stream.RemoveReader(writer)
 
-	var medias []*description.Media
 	var w *rtmp.Writer
 
-	videoMedia, videoFormat := c.setupVideo(
+	videoFormat := c.setupVideo(
 		&w,
 		res.stream,
 		writer)
-	if videoMedia != nil {
-		medias = append(medias, videoMedia)
-	}
 
-	audioMedia, audioFormat := c.setupAudio(
+	audioFormat := c.setupAudio(
 		&w,
 		res.stream,
 		writer)
-	if audioFormat != nil {
-		medias = append(medias, audioMedia)
-	}
 
 	if videoFormat == nil && audioFormat == nil {
 		return fmt.Errorf(
 			"the stream doesn't contain any supported codec, which are currently H264, MPEG-4 Audio, MPEG-1/2 Audio")
 	}
 
-	common.Logger.Info("is reading from path '%s', %s",
-		res.Path.name, SourceMediaInfo(medias))
+	fmt.Println("is reading from path '%s', %s",
+		res.path.name, readerMediaInfo(writer, res.stream))
 
-	pathConf := res.Path.safeConf()
+	pathConf := res.path.safeConf()
 
-	if pathConf.RunOnRead != "" {
-		common.Logger.Info("runOnRead command started")
-		onReadCmd := externalcmd.NewCmd(
-			c.externalCmdPool,
-			pathConf.RunOnRead,
-			pathConf.RunOnReadRestart,
-			res.Path.externalCmdEnv(),
-			func(err error) {
-				common.Logger.Info("runOnRead command exited: %v", err)
-			})
+	// if pathConf.RunOnRead != "" {
+	// 	env := res.path.externalCmdEnv()
+	// 	desc := c.apiReaderDescribe()
+	// 	env["MTX_READER_TYPE"] = desc.Type
+	// 	env["MTX_READER_ID"] = desc.ID
+
+	// 	onReadCmd := externalcmd.NewCmd(
+	// 		c.externalCmdPool,
+	// 		pathConf.RunOnRead,
+	// 		pathConf.RunOnReadRestart,
+	// 		env,
+	// 		func(err error) {
+	// 			fmt.Println("runOnRead command exited: %v", err)
+	// 		})
+	// 	defer func() {
+	// 		onReadCmd.Close()
+	// 		fmt.Println("runOnRead command stopped")
+	// 	}()
+	// }
+
+	if pathConf.RunOnUnread != "" {
 		defer func() {
-			onReadCmd.Close()
-			common.Logger.Info("runOnRead command stopped")
+			env := res.path.externalCmdEnv()
+			desc := c.apiReaderDescribe()
+			env["MTX_READER_TYPE"] = desc.Type
+			env["MTX_READER_ID"] = desc.ID
+
+			fmt.Println("runOnUnread command launched")
+			// externalcmd.NewCmd(
+			// 	c.externalCmdPool,
+			// 	pathConf.RunOnUnread,
+			// 	false,
+			// 	res.path.externalCmdEnv(),
+			// 	nil)
 		}()
 	}
 
@@ -307,7 +296,7 @@ func (c *rtmpConn) setupVideo(
 	w **rtmp.Writer,
 	stream *stream.Stream,
 	writer *asyncwriter.Writer,
-) (*description.Media, format.Format) {
+) format.Format {
 	var videoFormatH264 *format.H264
 	videoMedia := stream.Desc().FindFormat(&videoFormatH264)
 
@@ -366,23 +355,23 @@ func (c *rtmpConn) setupVideo(
 			return (*w).WriteH264(tunit.PTS, dts, idrPresent, tunit.AU)
 		})
 
-		return videoMedia, videoFormatH264
+		return videoFormatH264
 	}
 
-	return nil, nil
+	return nil
 }
 
 func (c *rtmpConn) setupAudio(
 	w **rtmp.Writer,
 	stream *stream.Stream,
 	writer *asyncwriter.Writer,
-) (*description.Media, format.Format) {
-	var audioFormatMPEG4Generic *format.MPEG4AudioGeneric
-	audioMedia := stream.Desc().FindFormat(&audioFormatMPEG4Generic)
+) format.Format {
+	var audioFormatMPEG4Audio *format.MPEG4Audio
+	audioMedia := stream.Desc().FindFormat(&audioFormatMPEG4Audio)
 
 	if audioMedia != nil {
-		stream.AddReader(writer, audioMedia, audioFormatMPEG4Generic, func(u unit.Unit) error {
-			tunit := u.(*unit.MPEG4AudioGeneric)
+		stream.AddReader(writer, audioMedia, audioFormatMPEG4Audio, func(u unit.Unit) error {
+			tunit := u.(*unit.MPEG4Audio)
 
 			if tunit.AUs == nil {
 				return nil
@@ -392,7 +381,7 @@ func (c *rtmpConn) setupAudio(
 				c.nconn.SetWriteDeadline(time.Now().Add(time.Duration(c.writeTimeout)))
 				err := (*w).WriteMPEG4Audio(
 					tunit.PTS+time.Duration(i)*mpeg4audio.SamplesPerAccessUnit*
-						time.Second/time.Duration(audioFormatMPEG4Generic.ClockRate()),
+						time.Second/time.Duration(audioFormatMPEG4Audio.ClockRate()),
 					au,
 				)
 				if err != nil {
@@ -403,28 +392,7 @@ func (c *rtmpConn) setupAudio(
 			return nil
 		})
 
-		return audioMedia, audioFormatMPEG4Generic
-	}
-
-	var audioFormatMPEG4AudioLATM *format.MPEG4AudioLATM
-	audioMedia = stream.Desc().FindFormat(&audioFormatMPEG4AudioLATM)
-
-	if audioMedia != nil &&
-		audioFormatMPEG4AudioLATM.Config != nil &&
-		len(audioFormatMPEG4AudioLATM.Config.Programs) == 1 &&
-		len(audioFormatMPEG4AudioLATM.Config.Programs[0].Layers) == 1 {
-		stream.AddReader(writer, audioMedia, audioFormatMPEG4AudioLATM, func(u unit.Unit) error {
-			tunit := u.(*unit.MPEG4AudioLATM)
-
-			if tunit.AU == nil {
-				return nil
-			}
-
-			c.nconn.SetWriteDeadline(time.Now().Add(time.Duration(c.writeTimeout)))
-			return (*w).WriteMPEG4Audio(tunit.PTS, tunit.AU)
-		})
-
-		return audioMedia, audioFormatMPEG4AudioLATM
+		return audioFormatMPEG4Audio
 	}
 
 	var audioFormatMPEG1 *format.MPEG1Audio
@@ -460,25 +428,25 @@ func (c *rtmpConn) setupAudio(
 			return nil
 		})
 
-		return audioMedia, audioFormatMPEG1
+		return audioFormatMPEG1
 	}
 
-	return nil, nil
+	return nil
 }
 
 func (c *rtmpConn) runPublish(conn *rtmp.Conn, u *url.URL) error {
 	pathName, query, rawQuery := pathNameAndQuery(u)
 
-	res := DefaultPathManager.addPublisher(PathAddPublisherReq{
-		Author:   c,
-		PathName: pathName,
-		Credentials: AuthCredentials{
-			Query: rawQuery,
-			Ip:    c.ip(),
-			User:  query.Get("user"),
-			Pass:  query.Get("pass"),
-			Proto: authProtocolRTMP,
-			ID:    &c.uuid,
+	res := c.pathManager.addPublisher(pathAddPublisherReq{
+		author:   c,
+		pathName: pathName,
+		credentials: authCredentials{
+			query: rawQuery,
+			ip:    c.ip(),
+			user:  query.Get("user"),
+			pass:  query.Get("pass"),
+			proto: authProtocolRTMP,
+			id:    &c.uuid,
 		},
 	})
 
@@ -491,7 +459,7 @@ func (c *rtmpConn) runPublish(conn *rtmp.Conn, u *url.URL) error {
 		return res.err
 	}
 
-	defer res.Path.removePublisher(PathRemovePublisherReq{author: c})
+	defer res.path.removePublisher(pathRemovePublisherReq{author: c})
 
 	c.mutex.Lock()
 	c.state = rtmpConnStatePublish
@@ -572,9 +540,9 @@ func (c *rtmpConn) runPublish(conn *rtmp.Conn, u *url.URL) error {
 		medias = append(medias, audioMedia)
 
 		switch audioFormat.(type) {
-		case *format.MPEG4AudioGeneric:
+		case *format.MPEG4Audio:
 			r.OnDataMPEG4Audio(func(pts time.Duration, au []byte) {
-				stream.WriteUnit(audioMedia, audioFormat, &unit.MPEG4AudioGeneric{
+				stream.WriteUnit(audioMedia, audioFormat, &unit.MPEG4Audio{
 					Base: unit.Base{
 						NTP: time.Now(),
 						PTS: pts,
@@ -599,7 +567,7 @@ func (c *rtmpConn) runPublish(conn *rtmp.Conn, u *url.URL) error {
 		}
 	}
 
-	rres := res.Path.startPublisher(PathStartPublisherReq{
+	rres := res.path.startPublisher(pathStartPublisherReq{
 		author:             c,
 		desc:               &description.Session{Medias: medias},
 		generateRTPPackets: true,
@@ -623,8 +591,8 @@ func (c *rtmpConn) runPublish(conn *rtmp.Conn, u *url.URL) error {
 }
 
 // apiReaderDescribe implements reader.
-func (c *rtmpConn) apiReaderDescribe() PathAPISourceOrReader {
-	return PathAPISourceOrReader{
+func (c *rtmpConn) apiReaderDescribe() apiPathSourceOrReader {
+	return apiPathSourceOrReader{
 		Type: func() string {
 			if c.isTLS {
 				return "rtmpsConn"
@@ -635,8 +603,8 @@ func (c *rtmpConn) apiReaderDescribe() PathAPISourceOrReader {
 	}
 }
 
-// ApiSourceDescribe implements source.
-func (c *rtmpConn) ApiSourceDescribe() PathAPISourceOrReader {
+// apiSourceDescribe implements source.
+func (c *rtmpConn) apiSourceDescribe() apiPathSourceOrReader {
 	return c.apiReaderDescribe()
 }
 
@@ -647,9 +615,9 @@ func (c *rtmpConn) apiItem() *apiRTMPConn {
 	bytesReceived := uint64(0)
 	bytesSent := uint64(0)
 
-	if c.conn != nil {
-		bytesReceived = c.conn.BytesReceived()
-		bytesSent = c.conn.BytesSent()
+	if c.rconn != nil {
+		bytesReceived = c.rconn.BytesReceived()
+		bytesSent = c.rconn.BytesSent()
 	}
 
 	return &apiRTMPConn{

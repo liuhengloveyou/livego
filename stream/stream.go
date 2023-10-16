@@ -3,12 +3,12 @@ package stream
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/bluenviron/gortsplib/v4"
 	"github.com/bluenviron/gortsplib/v4/pkg/description"
 	"github.com/bluenviron/gortsplib/v4/pkg/format"
-	"github.com/pion/rtcp"
 	"github.com/pion/rtp"
 
 	"github.com/liuhengloveyou/livego/asyncwriter"
@@ -20,21 +20,13 @@ type readerFunc func(unit.Unit) error
 // Stream is a media stream.
 // It stores tracks, readers and allows to write data to readers.
 type Stream struct {
-	desc          *description.Session
+	desc *description.Session
+
 	bytesReceived *uint64
-
-	smedias map[*description.Media]*streamMedia
-
-	rtspStream  *gortsplib.ServerStream
-	rtspsStream *gortsplib.ServerStream
-
-	mutex sync.RWMutex
-
-	LastPts     time.Duration
-	NTPTime     uint64
-	RTPTime     uint32
-	PacketCount uint32
-	OctetCount  uint32
+	smedias       map[*description.Media]*streamMedia
+	mutex         sync.RWMutex
+	rtspStream    *gortsplib.ServerStream
+	rtspsStream   *gortsplib.ServerStream
 }
 
 // New allocates a Stream.
@@ -42,11 +34,10 @@ func New(
 	udpMaxPayloadSize int,
 	desc *description.Session,
 	generateRTPPackets bool,
-	bytesReceived *uint64,
 ) (*Stream, error) {
 	s := &Stream{
-		bytesReceived: bytesReceived,
 		desc:          desc,
+		bytesReceived: new(uint64),
 	}
 
 	s.smedias = make(map[*description.Media]*streamMedia)
@@ -75,6 +66,11 @@ func (s *Stream) Close() {
 // Desc returns the description of the stream.
 func (s *Stream) Desc() *description.Session {
 	return s.desc
+}
+
+// BytesReceived returns received bytes.
+func (s *Stream) BytesReceived() uint64 {
+	return atomic.LoadUint64(s.bytesReceived)
 }
 
 // RTSPStream returns the RTSP stream.
@@ -121,6 +117,25 @@ func (s *Stream) RemoveReader(r *asyncwriter.Writer) {
 	}
 }
 
+// MediasForReader returns all medias that a reader is reading.
+func (s *Stream) MediasForReader(r *asyncwriter.Writer) []*description.Media {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	var medias []*description.Media
+
+	for media, sm := range s.smedias {
+		for _, sf := range sm.formats {
+			if _, ok := sf.readers[r]; ok {
+				medias = append(medias, media)
+				break
+			}
+		}
+	}
+
+	return medias
+}
+
 // WriteUnit writes a Unit.
 func (s *Stream) WriteUnit(medi *description.Media, forma format.Format, u unit.Unit) {
 	sm := s.smedias[medi]
@@ -143,29 +158,8 @@ func (s *Stream) WriteRTPPacket(
 	sm := s.smedias[medi]
 	sf := sm.formats[forma]
 
-	s.LastPts = pts
-
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	sf.writeRTPPacket(s, medi, pkt, ntp, pts)
 }
-
-func (s *Stream) UpdateStats(medi *description.Media, pkt rtcp.Packet) {
-	if tmpPkt, ok := pkt.(*rtcp.SenderReport); ok {
-		s.NTPTime = tmpPkt.NTPTime
-		s.RTPTime = tmpPkt.RTPTime
-		s.PacketCount = tmpPkt.PacketCount
-		s.OctetCount = tmpPkt.OctetCount
-	}
-}
-
-// func (s *Stream) GetStream(t string) *streamMedia {
-// 	for k, v := range s.smedias {
-// 		if string(k.Type) == t {
-// 			return v
-// 		}
-// 	}
-
-// 	return nil
-// }

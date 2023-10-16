@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/bluenviron/gortsplib/v4/pkg/ringbuffer"
-	"github.com/liuhengloveyou/livego/common"
 )
 
 // Writer is an asynchronous writer.
@@ -55,17 +54,6 @@ func (w *Writer) runInner() error {
 
 		err := cb.(func() error)()
 		if err != nil {
-			// cErr, ok := err.(*common.Error)
-			// if ok {
-			// 	if cErr.Equal(common.ErrTooFast) {
-			// 		time.Sleep(time.Millisecond * 10) // 太快了，sleep10ms
-			// 	} else if cErr.Equal(common.ErrTooSlowly) { //nolint:errcheck
-			// 		// 太慢了
-			// 	}
-
-			// 	continue
-			// }
-
 			return err
 		}
 	}
@@ -75,6 +63,6 @@ func (w *Writer) runInner() error {
 func (w *Writer) Push(cb func() error) {
 	ok := w.buffer.Push(cb)
 	if !ok {
-		common.Logger.Warn("write queue is full")
+		panic("write queue is full")
 	}
 }
