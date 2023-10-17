@@ -18,6 +18,7 @@ import (
 )
 
 type webRTCOutgoingTrack struct {
+	sess   *webRTCSession
 	sender *webrtc.RTPSender
 	media  *description.Media
 	format format.Format
@@ -25,7 +26,7 @@ type webRTCOutgoingTrack struct {
 	cb     func(unit.Unit) error
 }
 
-func newWebRTCOutgoingTrackVideo(desc *description.Session) (*webRTCOutgoingTrack, error) {
+func newWebRTCOutgoingTrackVideo(sess *webRTCSession, desc *description.Session) (*webRTCOutgoingTrack, error) {
 	var av1Format *format.AV1
 	videoMedia := desc.FindFormat(&av1Format)
 
@@ -52,6 +53,7 @@ func newWebRTCOutgoingTrackVideo(desc *description.Session) (*webRTCOutgoingTrac
 		}
 
 		return &webRTCOutgoingTrack{
+			sess:   sess,
 			media:  videoMedia,
 			format: av1Format,
 			track:  webRTCTrak,
@@ -103,6 +105,7 @@ func newWebRTCOutgoingTrackVideo(desc *description.Session) (*webRTCOutgoingTrac
 		}
 
 		return &webRTCOutgoingTrack{
+			sess:   sess,
 			media:  videoMedia,
 			format: vp9Format,
 			track:  webRTCTrak,
@@ -154,6 +157,7 @@ func newWebRTCOutgoingTrackVideo(desc *description.Session) (*webRTCOutgoingTrac
 		}
 
 		return &webRTCOutgoingTrack{
+			sess:   sess,
 			media:  videoMedia,
 			format: vp8Format,
 			track:  webRTCTrak,
@@ -207,51 +211,53 @@ func newWebRTCOutgoingTrackVideo(desc *description.Session) (*webRTCOutgoingTrac
 		firstReceived := false
 		var lastPTS time.Duration
 
-		return &webRTCOutgoingTrack{
+		outTrack := &webRTCOutgoingTrack{
+			sess:   sess,
 			media:  videoMedia,
 			format: h264Format,
 			track:  webRTCTrak,
-			cb: func(u unit.Unit) error {
-				tunit := u.(*unit.H264)
+		}
 
-				if tunit.AU == nil {
-					return nil
-				}
+		outTrack.cb = func(u unit.Unit) error {
+			tunit := u.(*unit.H264)
 
-				fmt.Println(">>>>>>>>>>>", tunit.NTP.UnixMilli())
-
-				// sub := time.Since(tunit.GetNTP()).Milliseconds() + outTrack.sess.AmendMs
-				// // fmt.Println(">>>>>>", sub, time.Since(tunit.GetNTP()).Milliseconds(), outTrack.sess.AmendMs)
-				// if sub < 0 {
-				// 	time.Sleep(time.Duration(0-sub) * time.Millisecond)
-				// }
-
-				if !firstReceived {
-					firstReceived = true
-				} else if tunit.PTS < lastPTS {
-					return fmt.Errorf("WebRTC doesn't support H264 streams with B-frames")
-				}
-				lastPTS = tunit.PTS
-
-				packets, err := encoder.Encode(tunit.AU)
-				if err != nil {
-					return nil //nolint:nilerr
-				}
-
-				for _, pkt := range packets {
-					pkt.Timestamp += tunit.RTPPackets[0].Timestamp
-					webRTCTrak.WriteRTP(pkt) //nolint:errcheck
-				}
-
+			if tunit.AU == nil {
 				return nil
-			},
-		}, nil
+			}
+
+			sub := time.Since(tunit.GetNTP()).Milliseconds() - outTrack.sess.AmendMs
+			// fmt.Println(">>>>>>>>>>>", tunit.NTP.UnixMilli(), outTrack.sess.AmendMs, sub)
+			if sub < 0 {
+				time.Sleep(time.Duration(0-sub) * time.Millisecond)
+			}
+
+			if !firstReceived {
+				firstReceived = true
+			} else if tunit.PTS < lastPTS {
+				return fmt.Errorf("WebRTC doesn't support H264 streams with B-frames")
+			}
+			lastPTS = tunit.PTS
+
+			packets, err := encoder.Encode(tunit.AU)
+			if err != nil {
+				return nil //nolint:nilerr
+			}
+
+			for _, pkt := range packets {
+				pkt.Timestamp += tunit.RTPPackets[0].Timestamp
+				webRTCTrak.WriteRTP(pkt) //nolint:errcheck
+			}
+
+			return nil
+		}
+
+		return outTrack, nil
 	}
 
 	return nil, nil
 }
 
-func newWebRTCOutgoingTrackAudio(desc *description.Session) (*webRTCOutgoingTrack, error) {
+func newWebRTCOutgoingTrackAudio(sess *webRTCSession, desc *description.Session) (*webRTCOutgoingTrack, error) {
 	var opusFormat *format.Opus
 	audioMedia := desc.FindFormat(&opusFormat)
 
@@ -270,6 +276,7 @@ func newWebRTCOutgoingTrackAudio(desc *description.Session) (*webRTCOutgoingTrac
 		}
 
 		return &webRTCOutgoingTrack{
+			sess:   sess,
 			media:  audioMedia,
 			format: opusFormat,
 			track:  webRTCTrak,
@@ -300,6 +307,7 @@ func newWebRTCOutgoingTrackAudio(desc *description.Session) (*webRTCOutgoingTrac
 		}
 
 		return &webRTCOutgoingTrack{
+			sess:   sess,
 			media:  audioMedia,
 			format: g722Format,
 			track:  webRTCTrak,
@@ -337,10 +345,16 @@ func newWebRTCOutgoingTrackAudio(desc *description.Session) (*webRTCOutgoingTrac
 		}
 
 		return &webRTCOutgoingTrack{
+			sess:   sess,
 			media:  audioMedia,
 			format: g711Format,
 			track:  webRTCTrak,
 			cb: func(u unit.Unit) error {
+				sub := time.Since(u.GetNTP()).Milliseconds() - sess.AmendMs
+				if sub < 0 {
+					time.Sleep(time.Duration(0-sub) * time.Millisecond)
+				}
+
 				for _, pkt := range u.GetRTPPackets() {
 					webRTCTrak.WriteRTP(pkt) //nolint:errcheck
 				}
@@ -357,6 +371,19 @@ func (t *webRTCOutgoingTrack) start(
 	stream *stream.Stream,
 	writer *asyncwriter.Writer,
 ) {
+	go func() {
+		for {
+			time.Sleep(time.Second)
+			// s := stream.GetStream("video")
+			if t.sess != nil && t.sess.DataChannel != nil {
+				if sendErr := t.sess.DataChannel.SendText(fmt.Sprintf("dataChannel %v", t.sess.AmendMs)); sendErr != nil {
+					fmt.Println(sendErr)
+					return
+				}
+			}
+		}
+	}()
+
 	// read incoming RTCP packets to make interceptors work
 	go func() {
 		buf := make([]byte, 1500)
