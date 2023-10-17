@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -64,10 +65,10 @@ outer:
 	return nil
 }
 
-func webrtcGatherOutgoingTracks(desc *description.Session) ([]*webRTCOutgoingTrack, error) {
+func (s *webRTCSession) webrtcGatherOutgoingTracks(desc *description.Session) ([]*webRTCOutgoingTrack, error) {
 	var tracks []*webRTCOutgoingTrack
 
-	videoTrack, err := newWebRTCOutgoingTrackVideo(desc)
+	videoTrack, err := newWebRTCOutgoingTrackVideo(s, desc)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +77,7 @@ func webrtcGatherOutgoingTracks(desc *description.Session) ([]*webRTCOutgoingTra
 		tracks = append(tracks, videoTrack)
 	}
 
-	audioTrack, err := newWebRTCOutgoingTrackAudio(desc)
+	audioTrack, err := newWebRTCOutgoingTrackAudio(s, desc)
 	if err != nil {
 		return nil, err
 	}
@@ -174,16 +175,19 @@ type webRTCSession struct {
 	pathManager    webRTCSessionPathManager
 	parent         *webRTCManager
 
-	ctx       context.Context
-	ctxCancel func()
-	created   time.Time
-	uuid      uuid.UUID
-	secret    uuid.UUID
-	mutex     sync.RWMutex
-	pc        *webrtcpc.PeerConnection
+	ctx         context.Context
+	ctxCancel   func()
+	created     time.Time
+	uuid        uuid.UUID
+	secret      uuid.UUID
+	mutex       sync.RWMutex
+	pc          *webrtcpc.PeerConnection
+	DataChannel *webrtc.DataChannel
 
 	chNew           chan webRTCNewSessionReq
 	chAddCandidates chan webRTCAddSessionCandidatesReq
+
+	AmendMs int64 // 增加延时多少ms
 }
 
 func newWebRTCSession(
@@ -431,7 +435,7 @@ func (s *webRTCSession) runRead() (int, error) {
 
 	defer res.path.removeReader(pathRemoveReaderReq{author: s})
 
-	tracks, err := webrtcGatherOutgoingTracks(res.stream.Desc())
+	tracks, err := s.webrtcGatherOutgoingTracks(res.stream.Desc())
 	if err != nil {
 		return http.StatusBadRequest, err
 	}
@@ -487,6 +491,28 @@ func (s *webRTCSession) runRead() (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	// Register data channel creation handling
+	pc.OnDataChannel(func(d *webrtc.DataChannel) {
+		fmt.Printf("New DataChannel %s %d\n", d.Label(), d.ID())
+
+		s.DataChannel = d
+
+		// Register channel opening handling
+		d.OnOpen(func() {
+			fmt.Printf("Data channel '%s'-'%d' open.\n", d.Label(), d.ID())
+
+		})
+
+		// Register text message handling
+		d.OnMessage(func(msg webrtc.DataChannelMessage) {
+			iata, _ := strconv.Atoi(string(msg.Data))
+			if iata >= 0 {
+				s.AmendMs = int64(iata)
+			}
+			fmt.Printf("Message from DataChannel '%s': '%s' %d\n", d.Label(), string(msg.Data), s.AmendMs)
+		})
+	})
 
 	s.mutex.Lock()
 	s.pc = pc
