@@ -8,6 +8,7 @@ import (
 	"github.com/bluenviron/gortsplib/v4/pkg/format"
 
 	"github.com/liuhengloveyou/livego/conf"
+	"github.com/liuhengloveyou/livego/proto"
 	"github.com/liuhengloveyou/livego/rpicamera"
 	"github.com/liuhengloveyou/livego/stream"
 	"github.com/liuhengloveyou/livego/unit"
@@ -125,8 +126,8 @@ func (s *rpiCameraSource) run(ctx context.Context, cnf *conf.Path, reloadConf ch
 }
 
 // apiSourceDescribe implements sourceStaticImpl.
-func (*rpiCameraSource) apiSourceDescribe() apiPathSourceOrReader {
-	return apiPathSourceOrReader{
+func (*rpiCameraSource) apiSourceDescribe() proto.ApiPathSourceOrReader {
+	return proto.ApiPathSourceOrReader{
 		Type: "rpiCameraSource",
 		ID:   "",
 	}

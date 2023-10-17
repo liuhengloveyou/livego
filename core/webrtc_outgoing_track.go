@@ -218,6 +218,14 @@ func newWebRTCOutgoingTrackVideo(desc *description.Session) (*webRTCOutgoingTrac
 					return nil
 				}
 
+				fmt.Println(">>>>>>>>>>>", tunit.NTP.UnixMilli())
+
+				// sub := time.Since(tunit.GetNTP()).Milliseconds() + outTrack.sess.AmendMs
+				// // fmt.Println(">>>>>>", sub, time.Since(tunit.GetNTP()).Milliseconds(), outTrack.sess.AmendMs)
+				// if sub < 0 {
+				// 	time.Sleep(time.Duration(0-sub) * time.Millisecond)
+				// }
+
 				if !firstReceived {
 					firstReceived = true
 				} else if tunit.PTS < lastPTS {

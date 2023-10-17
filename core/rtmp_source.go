@@ -12,6 +12,7 @@ import (
 	"github.com/bluenviron/gortsplib/v4/pkg/format"
 
 	"github.com/liuhengloveyou/livego/conf"
+	"github.com/liuhengloveyou/livego/proto"
 	"github.com/liuhengloveyou/livego/rtmp"
 	"github.com/liuhengloveyou/livego/stream"
 	"github.com/liuhengloveyou/livego/unit"
@@ -193,8 +194,8 @@ func (s *rtmpSource) runReader(u *url.URL, nconn net.Conn) error {
 }
 
 // apiSourceDescribe implements sourceStaticImpl.
-func (*rtmpSource) apiSourceDescribe() apiPathSourceOrReader {
-	return apiPathSourceOrReader{
+func (*rtmpSource) apiSourceDescribe() proto.ApiPathSourceOrReader {
+	return proto.ApiPathSourceOrReader{
 		Type: "rtmpSource",
 		ID:   "",
 	}

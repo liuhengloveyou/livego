@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/liuhengloveyou/livego/conf"
+	"github.com/liuhengloveyou/livego/proto"
 )
 
 const (
@@ -66,7 +67,7 @@ func newRTSPConn(
 
 	c.conn = newConn(rtspAddress)
 
-	c.conn.open(apiPathSourceOrReader{
+	c.conn.open(proto.ApiPathSourceOrReader{
 		Type: func() string {
 			if isTLS {
 				return "rtspsConn"
@@ -94,7 +95,7 @@ func (c *rtspConn) ip() net.IP {
 
 // onClose is called by rtspServer.
 func (c *rtspConn) onClose(err error) {
-	c.conn.close(apiPathSourceOrReader{
+	c.conn.close(proto.ApiPathSourceOrReader{
 		Type: func() string {
 			if c.isTLS {
 				return "rtspsConn"
@@ -213,8 +214,8 @@ func (c *rtspConn) handleAuthError(authErr error) (*base.Response, error) {
 	}, authErr
 }
 
-func (c *rtspConn) apiItem() *apiRTSPConn {
-	return &apiRTSPConn{
+func (c *rtspConn) apiItem() *proto.ApiRTSPConn {
+	return &proto.ApiRTSPConn{
 		ID:            c.uuid,
 		Created:       c.created,
 		RemoteAddr:    c.remoteAddr().String(),

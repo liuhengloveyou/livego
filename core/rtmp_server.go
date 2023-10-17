@@ -10,11 +10,13 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
+	"github.com/liuhengloveyou/livego/proto"
 )
 
 type rtmpServerAPIConnsListRes struct {
-	data *apiRTMPConnList
+	data *proto.ApiRTMPConnList
 	err  error
 }
 
@@ -23,7 +25,7 @@ type rtmpServerAPIConnsListReq struct {
 }
 
 type rtmpServerAPIConnsGetRes struct {
-	data *apiRTMPConn
+	data *proto.ApiRTMPConn
 	err  error
 }
 
@@ -85,7 +87,7 @@ func newRTMPServer(
 ) (*rtmpServer, error) {
 	ln, err := func() (net.Listener, error) {
 		if !isTLS {
-			return net.Listen(restrictNetwork("tcp", address))
+			return net.Listen(common.RestrictNetwork("tcp", address))
 		}
 
 		cert, err := tls.LoadX509KeyPair(serverCert, serverKey)
@@ -93,7 +95,7 @@ func newRTMPServer(
 			return nil, err
 		}
 
-		network, address := restrictNetwork("tcp", address)
+		network, address := common.RestrictNetwork("tcp", address)
 		return tls.Listen(network, address, &tls.Config{Certificates: []tls.Certificate{cert}})
 	}()
 	if err != nil {
@@ -177,8 +179,8 @@ outer:
 			delete(s.conns, c)
 
 		case req := <-s.chAPIConnsList:
-			data := &apiRTMPConnList{
-				Items: []*apiRTMPConn{},
+			data := &proto.ApiRTMPConnList{
+				Items: []*proto.ApiRTMPConn{},
 			}
 
 			for c := range s.conns {
@@ -194,7 +196,7 @@ outer:
 		case req := <-s.chAPIConnsGet:
 			c := s.findConnByUUID(req.uuid)
 			if c == nil {
-				req.res <- rtmpServerAPIConnsGetRes{err: errAPINotFound}
+				req.res <- rtmpServerAPIConnsGetRes{err: common.ErrAPINotFound}
 				continue
 			}
 
@@ -203,7 +205,7 @@ outer:
 		case req := <-s.chAPIConnsKick:
 			c := s.findConnByUUID(req.uuid)
 			if c == nil {
-				req.res <- rtmpServerAPIConnsKickRes{err: errAPINotFound}
+				req.res <- rtmpServerAPIConnsKickRes{err: common.ErrAPINotFound}
 				continue
 			}
 
@@ -260,7 +262,7 @@ func (s *rtmpServer) closeConn(c *rtmpConn) {
 }
 
 // apiConnsList is called by api.
-func (s *rtmpServer) apiConnsList() (*apiRTMPConnList, error) {
+func (s *rtmpServer) ApiConnsList() (*proto.ApiRTMPConnList, error) {
 	req := rtmpServerAPIConnsListReq{
 		res: make(chan rtmpServerAPIConnsListRes),
 	}
@@ -276,7 +278,7 @@ func (s *rtmpServer) apiConnsList() (*apiRTMPConnList, error) {
 }
 
 // apiConnsGet is called by api.
-func (s *rtmpServer) apiConnsGet(uuid uuid.UUID) (*apiRTMPConn, error) {
+func (s *rtmpServer) ApiConnsGet(uuid uuid.UUID) (*proto.ApiRTMPConn, error) {
 	req := rtmpServerAPIConnsGetReq{
 		uuid: uuid,
 		res:  make(chan rtmpServerAPIConnsGetRes),
@@ -293,7 +295,7 @@ func (s *rtmpServer) apiConnsGet(uuid uuid.UUID) (*apiRTMPConn, error) {
 }
 
 // apiConnsKick is called by api.
-func (s *rtmpServer) apiConnsKick(uuid uuid.UUID) error {
+func (s *rtmpServer) ApiConnsKick(uuid uuid.UUID) error {
 	req := rtmpServerAPIConnsKickReq{
 		uuid: uuid,
 		res:  make(chan rtmpServerAPIConnsKickRes),

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/liuhengloveyou/livego/conf"
+	"github.com/liuhengloveyou/livego/proto"
 )
 
 const (
@@ -15,7 +16,7 @@ const (
 
 type sourceStaticImpl interface {
 	run(context.Context, *conf.Path, chan *conf.Path) error
-	apiSourceDescribe() apiPathSourceOrReader
+	apiSourceDescribe() proto.ApiPathSourceOrReader
 }
 
 type sourceStaticParent interface {
@@ -197,7 +198,7 @@ func (s *sourceStatic) reloadConf(newConf *conf.Path) {
 }
 
 // apiSourceDescribe implements source.
-func (s *sourceStatic) apiSourceDescribe() apiPathSourceOrReader {
+func (s *sourceStatic) apiSourceDescribe() proto.ApiPathSourceOrReader {
 	return s.impl.apiSourceDescribe()
 }
 

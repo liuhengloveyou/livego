@@ -19,7 +19,9 @@ import (
 	"github.com/pion/interceptor"
 	"github.com/pion/webrtc/v3"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
+	"github.com/liuhengloveyou/livego/proto"
 )
 
 const (
@@ -230,7 +232,7 @@ func webrtcNewAPI(
 }
 
 type webRTCManagerAPISessionsListRes struct {
-	data *apiWebRTCSessionList
+	data *proto.ApiWebRTCSessionList
 	err  error
 }
 
@@ -239,7 +241,7 @@ type webRTCManagerAPISessionsListReq struct {
 }
 
 type webRTCManagerAPISessionsGetRes struct {
-	data *apiWebRTCSession
+	data *proto.ApiWebRTCSession
 	err  error
 }
 
@@ -375,7 +377,7 @@ func newWebRTCManager(
 	var iceUDPMux ice.UDPMux
 
 	if iceUDPMuxAddress != "" {
-		m.udpMuxLn, err = net.ListenPacket(restrictNetwork("udp", iceUDPMuxAddress))
+		m.udpMuxLn, err = net.ListenPacket(common.RestrictNetwork("udp", iceUDPMuxAddress))
 		if err != nil {
 			m.httpServer.close()
 			ctxCancel()
@@ -387,7 +389,7 @@ func newWebRTCManager(
 	var iceTCPMux ice.TCPMux
 
 	if iceTCPMuxAddress != "" {
-		m.tcpMuxLn, err = net.Listen(restrictNetwork("tcp", iceTCPMuxAddress))
+		m.tcpMuxLn, err = net.Listen(common.RestrictNetwork("tcp", iceTCPMuxAddress))
 		if err != nil {
 			m.udpMuxLn.Close()
 			m.httpServer.close()
@@ -465,8 +467,8 @@ outer:
 			req.res <- webRTCAddSessionCandidatesRes{sx: sx}
 
 		case req := <-m.chAPISessionsList:
-			data := &apiWebRTCSessionList{
-				Items: []*apiWebRTCSession{},
+			data := &proto.ApiWebRTCSessionList{
+				Items: []*proto.ApiWebRTCSession{},
 			}
 
 			for sx := range m.sessions {
@@ -482,7 +484,7 @@ outer:
 		case req := <-m.chAPISessionsGet:
 			sx := m.findSessionByUUID(req.uuid)
 			if sx == nil {
-				req.res <- webRTCManagerAPISessionsGetRes{err: errAPINotFound}
+				req.res <- webRTCManagerAPISessionsGetRes{err: common.ErrAPINotFound}
 				continue
 			}
 
@@ -491,7 +493,7 @@ outer:
 		case req := <-m.chAPIConnsKick:
 			sx := m.findSessionByUUID(req.uuid)
 			if sx == nil {
-				req.res <- webRTCManagerAPISessionsKickRes{err: errAPINotFound}
+				req.res <- webRTCManagerAPISessionsKickRes{err: common.ErrAPINotFound}
 				continue
 			}
 
@@ -602,7 +604,7 @@ func (m *webRTCManager) addSessionCandidates(
 }
 
 // apiSessionsList is called by api.
-func (m *webRTCManager) apiSessionsList() (*apiWebRTCSessionList, error) {
+func (m *webRTCManager) ApiSessionsList() (*proto.ApiWebRTCSessionList, error) {
 	req := webRTCManagerAPISessionsListReq{
 		res: make(chan webRTCManagerAPISessionsListRes),
 	}
@@ -618,7 +620,7 @@ func (m *webRTCManager) apiSessionsList() (*apiWebRTCSessionList, error) {
 }
 
 // apiSessionsGet is called by api.
-func (m *webRTCManager) apiSessionsGet(uuid uuid.UUID) (*apiWebRTCSession, error) {
+func (m *webRTCManager) ApiSessionsGet(uuid uuid.UUID) (*proto.ApiWebRTCSession, error) {
 	req := webRTCManagerAPISessionsGetReq{
 		uuid: uuid,
 		res:  make(chan webRTCManagerAPISessionsGetRes),
@@ -635,7 +637,7 @@ func (m *webRTCManager) apiSessionsGet(uuid uuid.UUID) (*apiWebRTCSession, error
 }
 
 // apiSessionsKick is called by api.
-func (m *webRTCManager) apiSessionsKick(uuid uuid.UUID) error {
+func (m *webRTCManager) ApiSessionsKick(uuid uuid.UUID) error {
 	req := webRTCManagerAPISessionsKickReq{
 		uuid: uuid,
 		res:  make(chan webRTCManagerAPISessionsKickRes),

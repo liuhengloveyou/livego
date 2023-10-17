@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pion/webrtc/v3"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/httpserv"
 	"github.com/liuhengloveyou/livego/whip"
@@ -68,7 +69,7 @@ func newWebRTCHTTPServer( //nolint:dupl
 	router.SetTrustedProxies(trustedProxies.ToTrustedProxies()) //nolint:errcheck
 	router.NoRoute(s.onRequest)
 
-	network, address := restrictNetwork("tcp", address)
+	network, address := common.RestrictNetwork("tcp", address)
 
 	var err error
 	s.inner, err = httpserv.NewWrappedServer(

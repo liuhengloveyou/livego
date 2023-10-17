@@ -16,6 +16,7 @@ import (
 	"github.com/pion/webrtc/v3"
 
 	"github.com/liuhengloveyou/livego/asyncwriter"
+	"github.com/liuhengloveyou/livego/proto"
 	"github.com/liuhengloveyou/livego/webrtcpc"
 )
 
@@ -604,19 +605,19 @@ func (s *webRTCSession) addCandidates(
 }
 
 // apiSourceDescribe implements sourceStaticImpl.
-func (s *webRTCSession) apiSourceDescribe() apiPathSourceOrReader {
-	return apiPathSourceOrReader{
+func (s *webRTCSession) apiSourceDescribe() proto.ApiPathSourceOrReader {
+	return proto.ApiPathSourceOrReader{
 		Type: "webRTCSession",
 		ID:   s.uuid.String(),
 	}
 }
 
 // apiReaderDescribe implements reader.
-func (s *webRTCSession) apiReaderDescribe() apiPathSourceOrReader {
+func (s *webRTCSession) apiReaderDescribe() proto.ApiPathSourceOrReader {
 	return s.apiSourceDescribe()
 }
 
-func (s *webRTCSession) apiItem() *apiWebRTCSession {
+func (s *webRTCSession) apiItem() *proto.ApiWebRTCSession {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -634,18 +635,18 @@ func (s *webRTCSession) apiItem() *apiWebRTCSession {
 		bytesSent = s.pc.BytesSent()
 	}
 
-	return &apiWebRTCSession{
+	return &proto.ApiWebRTCSession{
 		ID:                        s.uuid,
 		Created:                   s.created,
 		RemoteAddr:                s.req.remoteAddr,
 		PeerConnectionEstablished: peerConnectionEstablished,
 		LocalCandidate:            localCandidate,
 		RemoteCandidate:           remoteCandidate,
-		State: func() apiWebRTCSessionState {
+		State: func() proto.ApiWebRTCSessionState {
 			if s.req.publish {
-				return apiWebRTCSessionStatePublish
+				return proto.ApiWebRTCSessionStatePublish
 			}
-			return apiWebRTCSessionStateRead
+			return proto.ApiWebRTCSessionStateRead
 		}(),
 		Path:          s.req.pathName,
 		BytesReceived: bytesReceived,

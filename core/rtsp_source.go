@@ -8,10 +8,12 @@ import (
 	"github.com/bluenviron/gortsplib/v4"
 	"github.com/bluenviron/gortsplib/v4/pkg/base"
 	"github.com/bluenviron/gortsplib/v4/pkg/headers"
+	"github.com/pion/rtcp"
 	"github.com/pion/rtp"
 
 	"github.com/bluenviron/gortsplib/v4/pkg/url"
 	"github.com/liuhengloveyou/livego/conf"
+	"github.com/liuhengloveyou/livego/proto"
 )
 
 func createRangeHeader(cnf *conf.Path) (*headers.Range, error) {
@@ -95,10 +97,10 @@ func (s *rtspSource) run(ctx context.Context, cnf *conf.Path, reloadConf chan *c
 		WriteQueueSize: s.writeQueueSize,
 		AnyPortEnable:  cnf.SourceAnyPortEnable,
 		OnRequest: func(req *base.Request) {
-			fmt.Println("[c->s] %v", req)
+			fmt.Printf("[c->s] %v\n", req)
 		},
 		OnResponse: func(res *base.Response) {
-			fmt.Println("[s->c] %v", res)
+			fmt.Println("[s->c] ", res)
 		},
 		OnTransportSwitch: func(err error) {
 			fmt.Println(err.Error())
@@ -150,6 +152,10 @@ func (s *rtspSource) run(ctx context.Context, cnf *conf.Path, reloadConf chan *c
 					cmedi := medi
 					cforma := forma
 
+					c.OnPacketRTCP(cmedi, func(pkt rtcp.Packet) {
+						fmt.Println("rtcp>>>", pkt)
+					})
+
 					c.OnPacketRTP(cmedi, cforma, func(pkt *rtp.Packet) {
 						pts, ok := c.PacketPTS(cmedi, pkt)
 						if !ok {
@@ -191,8 +197,8 @@ func (s *rtspSource) run(ctx context.Context, cnf *conf.Path, reloadConf chan *c
 }
 
 // apiSourceDescribe implements sourceStaticImpl.
-func (*rtspSource) apiSourceDescribe() apiPathSourceOrReader {
-	return apiPathSourceOrReader{
+func (*rtspSource) apiSourceDescribe() proto.ApiPathSourceOrReader {
+	return proto.ApiPathSourceOrReader{
 		Type: "rtspSource",
 		ID:   "",
 	}

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/bluenviron/gortsplib/v4/pkg/description"
+	"github.com/liuhengloveyou/livego/proto"
 )
 
 // source is an entity that can provide a stream.
@@ -13,7 +14,7 @@ import (
 // - sourceStatic
 // - sourceRedirect
 type source interface {
-	apiSourceDescribe() apiPathSourceOrReader
+	apiSourceDescribe() proto.ApiPathSourceOrReader
 }
 
 func mediaDescription(media *description.Media) string {

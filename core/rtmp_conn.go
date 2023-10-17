@@ -19,6 +19,7 @@ import (
 
 	"github.com/liuhengloveyou/livego/asyncwriter"
 	"github.com/liuhengloveyou/livego/conf"
+	"github.com/liuhengloveyou/livego/proto"
 	"github.com/liuhengloveyou/livego/rtmp"
 	"github.com/liuhengloveyou/livego/stream"
 	"github.com/liuhengloveyou/livego/unit"
@@ -591,8 +592,8 @@ func (c *rtmpConn) runPublish(conn *rtmp.Conn, u *url.URL) error {
 }
 
 // apiReaderDescribe implements reader.
-func (c *rtmpConn) apiReaderDescribe() apiPathSourceOrReader {
-	return apiPathSourceOrReader{
+func (c *rtmpConn) apiReaderDescribe() proto.ApiPathSourceOrReader {
+	return proto.ApiPathSourceOrReader{
 		Type: func() string {
 			if c.isTLS {
 				return "rtmpsConn"
@@ -604,11 +605,11 @@ func (c *rtmpConn) apiReaderDescribe() apiPathSourceOrReader {
 }
 
 // apiSourceDescribe implements source.
-func (c *rtmpConn) apiSourceDescribe() apiPathSourceOrReader {
+func (c *rtmpConn) apiSourceDescribe() proto.ApiPathSourceOrReader {
 	return c.apiReaderDescribe()
 }
 
-func (c *rtmpConn) apiItem() *apiRTMPConn {
+func (c *rtmpConn) apiItem() *proto.ApiRTMPConn {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
@@ -620,20 +621,20 @@ func (c *rtmpConn) apiItem() *apiRTMPConn {
 		bytesSent = c.rconn.BytesSent()
 	}
 
-	return &apiRTMPConn{
+	return &proto.ApiRTMPConn{
 		ID:         c.uuid,
 		Created:    c.created,
 		RemoteAddr: c.remoteAddr().String(),
-		State: func() apiRTMPConnState {
+		State: func() proto.ApiRTMPConnState {
 			switch c.state {
 			case rtmpConnStateRead:
-				return apiRTMPConnStateRead
+				return proto.ApiRTMPConnStateRead
 
 			case rtmpConnStatePublish:
-				return apiRTMPConnStatePublish
+				return proto.ApiRTMPConnStatePublish
 
 			default:
-				return apiRTMPConnStateIdle
+				return proto.ApiRTMPConnStateIdle
 			}
 		}(),
 		Path:          c.pathName,

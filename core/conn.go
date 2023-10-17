@@ -1,5 +1,7 @@
 package core
 
+import "github.com/liuhengloveyou/livego/proto"
+
 type conn struct {
 	rtspAddress string
 	// runOnConnect        string
@@ -21,7 +23,7 @@ func newConn(
 	}
 }
 
-func (c *conn) open(desc apiPathSourceOrReader) {
+func (c *conn) open(desc proto.ApiPathSourceOrReader) {
 	// if c.runOnConnect != "" {
 	// _, port, _ := net.SplitHostPort(c.rtspAddress)
 	// env := externalcmd.Environment{
@@ -41,7 +43,7 @@ func (c *conn) open(desc apiPathSourceOrReader) {
 	// }
 }
 
-func (c *conn) close(desc apiPathSourceOrReader) {
+func (c *conn) close(desc proto.ApiPathSourceOrReader) {
 	// if c.onConnectCmd != nil {
 	// 	c.onConnectCmd.Close()
 	// 	fmt.Println("runOnConnect command stopped")

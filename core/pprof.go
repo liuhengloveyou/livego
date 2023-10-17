@@ -7,6 +7,7 @@ import (
 	// start pprof
 	_ "net/http/pprof"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/httpserv"
 )
@@ -21,7 +22,7 @@ func newPPROF(
 ) (*pprof, error) {
 	pp := &pprof{}
 
-	network, address := restrictNetwork("tcp", address)
+	network, address := common.RestrictNetwork("tcp", address)
 
 	var err error
 	pp.httpServer, err = httpserv.NewWrappedServer(

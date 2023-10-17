@@ -10,7 +10,9 @@ import (
 	"github.com/bluenviron/gortsplib/v4/pkg/multicast"
 	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
+	"github.com/liuhengloveyou/livego/proto"
 	"github.com/liuhengloveyou/livego/stream"
 )
 
@@ -76,7 +78,7 @@ func (s *udpSource) run(ctx context.Context, cnf *conf.Path, _ chan *conf.Path) 
 			return err
 		}
 	} else {
-		tmp, err := net.ListenPacket(restrictNetwork("udp", addr.String()))
+		tmp, err := net.ListenPacket(common.RestrictNetwork("udp", addr.String()))
 		if err != nil {
 			return err
 		}
@@ -146,8 +148,8 @@ func (s *udpSource) runReader(pc net.PacketConn) error {
 }
 
 // apiSourceDescribe implements sourceStaticImpl.
-func (*udpSource) apiSourceDescribe() apiPathSourceOrReader {
-	return apiPathSourceOrReader{
+func (*udpSource) apiSourceDescribe() proto.ApiPathSourceOrReader {
+	return proto.ApiPathSourceOrReader{
 		Type: "udpSource",
 		ID:   "",
 	}

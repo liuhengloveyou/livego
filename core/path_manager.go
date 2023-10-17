@@ -6,7 +6,9 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
+	"github.com/liuhengloveyou/livego/proto"
 )
 
 func pathConfCanBeUpdated(oldPathConf *conf.Path, newPathConf *conf.Path) bool {
@@ -362,7 +364,7 @@ func (pm *pathManager) doAPIPathsList(req pathAPIPathsListReq) {
 func (pm *pathManager) doAPIPathsGet(req pathAPIPathsGetReq) {
 	path, ok := pm.paths[req.name]
 	if !ok {
-		req.res <- pathAPIPathsGetRes{err: errAPINotFound}
+		req.res <- pathAPIPathsGetRes{err: common.ErrAPINotFound}
 		return
 	}
 
@@ -518,7 +520,7 @@ func (pm *pathManager) setHLSManager(s pathManagerHLSManager) {
 }
 
 // apiPathsList is called by api.
-func (pm *pathManager) apiPathsList() (*apiPathList, error) {
+func (pm *pathManager) ApiPathsList() (*proto.ApiPathList, error) {
 	req := pathAPIPathsListReq{
 		res: make(chan pathAPIPathsListRes),
 	}
@@ -527,8 +529,8 @@ func (pm *pathManager) apiPathsList() (*apiPathList, error) {
 	case pm.chAPIPathsList <- req:
 		res := <-req.res
 
-		res.data = &apiPathList{
-			Items: []*apiPath{},
+		res.data = &proto.ApiPathList{
+			Items: []*proto.ApiPath{},
 		}
 
 		for _, pa := range res.paths {
@@ -550,7 +552,7 @@ func (pm *pathManager) apiPathsList() (*apiPathList, error) {
 }
 
 // apiPathsGet is called by api.
-func (pm *pathManager) apiPathsGet(name string) (*apiPath, error) {
+func (pm *pathManager) ApiPathsGet(name string) (*proto.ApiPath, error) {
 	req := pathAPIPathsGetReq{
 		name: name,
 		res:  make(chan pathAPIPathsGetRes),

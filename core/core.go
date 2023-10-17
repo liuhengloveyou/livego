@@ -80,7 +80,7 @@ type Core struct {
 	rtmpServer    *rtmpServer
 	rtmpsServer   *rtmpServer
 	webRTCManager *webRTCManager
-	api           *api
+	// api           *api
 	// in
 	chAPIConfigSet chan *conf.Conf
 
@@ -534,43 +534,43 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		closeMetrics ||
 		closePathManager
 
-	closeSRTServer := newConf == nil ||
-		newConf.SRT != p.conf.SRT ||
-		newConf.SRTAddress != p.conf.SRTAddress ||
-		newConf.RTSPAddress != p.conf.RTSPAddress ||
-		newConf.ReadTimeout != p.conf.ReadTimeout ||
-		newConf.WriteTimeout != p.conf.WriteTimeout ||
-		newConf.WriteQueueSize != p.conf.WriteQueueSize ||
-		newConf.UDPMaxPayloadSize != p.conf.UDPMaxPayloadSize ||
-		newConf.RunOnConnect != p.conf.RunOnConnect ||
-		newConf.RunOnConnectRestart != p.conf.RunOnConnectRestart ||
-		newConf.RunOnDisconnect != p.conf.RunOnDisconnect ||
-		closePathManager
+	// closeSRTServer := newConf == nil ||
+	// 	newConf.SRT != p.conf.SRT ||
+	// 	newConf.SRTAddress != p.conf.SRTAddress ||
+	// 	newConf.RTSPAddress != p.conf.RTSPAddress ||
+	// 	newConf.ReadTimeout != p.conf.ReadTimeout ||
+	// 	newConf.WriteTimeout != p.conf.WriteTimeout ||
+	// 	newConf.WriteQueueSize != p.conf.WriteQueueSize ||
+	// 	newConf.UDPMaxPayloadSize != p.conf.UDPMaxPayloadSize ||
+	// 	newConf.RunOnConnect != p.conf.RunOnConnect ||
+	// 	newConf.RunOnConnectRestart != p.conf.RunOnConnectRestart ||
+	// 	newConf.RunOnDisconnect != p.conf.RunOnDisconnect ||
+	// 	closePathManager
 
-	closeAPI := newConf == nil ||
-		newConf.API != p.conf.API ||
-		newConf.APIAddress != p.conf.APIAddress ||
-		newConf.ReadTimeout != p.conf.ReadTimeout ||
-		closePathManager ||
-		closeRTSPServer ||
-		closeRTSPSServer ||
-		closeRTMPServer ||
-		closeWebRTCManager ||
-		closeSRTServer
+	// closeAPI := newConf == nil ||
+	// 	newConf.API != p.conf.API ||
+	// 	newConf.APIAddress != p.conf.APIAddress ||
+	// 	newConf.ReadTimeout != p.conf.ReadTimeout ||
+	// 	closePathManager ||
+	// 	closeRTSPServer ||
+	// 	closeRTSPSServer ||
+	// 	closeRTMPServer ||
+	// 	closeWebRTCManager ||
+	// 	closeSRTServer
 
 	// if newConf == nil && p.confWatcher != nil {
 	// 	p.confWatcher.Close()
 	// 	p.confWatcher = nil
 	// }
 
-	if p.api != nil {
-		if closeAPI {
-			p.api.close()
-			p.api = nil
-		} else if !calledByAPI { // avoid a loop
-			p.api.confReload(newConf)
-		}
-	}
+	// if p.api != nil {
+	// 	if closeAPI {
+	// 		p.api.close()
+	// 		p.api = nil
+	// 	} else if !calledByAPI { // avoid a loop
+	// 		p.api.confReload(newConf)
+	// 	}
+	// }
 
 	// if closeSRTServer && p.srtServer != nil {
 	// 	p.srtServer.close()

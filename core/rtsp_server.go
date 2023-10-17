@@ -15,7 +15,9 @@ import (
 	"github.com/bluenviron/gortsplib/v4/pkg/liberrors"
 	"github.com/google/uuid"
 
+	"github.com/liuhengloveyou/livego/common"
 	"github.com/liuhengloveyou/livego/conf"
+	"github.com/liuhengloveyou/livego/proto"
 )
 
 func printAddresses(srv *gortsplib.Server) string {
@@ -333,7 +335,7 @@ func (s *rtspServer) findSessionByUUID(uuid uuid.UUID) (*gortsplib.ServerSession
 }
 
 // apiConnsList is called by api and metrics.
-func (s *rtspServer) apiConnsList() (*apiRTSPConnsList, error) {
+func (s *rtspServer) ApiConnsList() (*proto.ApiRTSPConnsList, error) {
 	select {
 	case <-s.ctx.Done():
 		return nil, fmt.Errorf("terminated")
@@ -343,8 +345,8 @@ func (s *rtspServer) apiConnsList() (*apiRTSPConnsList, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	data := &apiRTSPConnsList{
-		Items: []*apiRTSPConn{},
+	data := &proto.ApiRTSPConnsList{
+		Items: []*proto.ApiRTSPConn{},
 	}
 
 	for _, c := range s.conns {
@@ -359,7 +361,7 @@ func (s *rtspServer) apiConnsList() (*apiRTSPConnsList, error) {
 }
 
 // apiConnsGet is called by api.
-func (s *rtspServer) apiConnsGet(uuid uuid.UUID) (*apiRTSPConn, error) {
+func (s *rtspServer) ApiConnsGet(uuid uuid.UUID) (*proto.ApiRTSPConn, error) {
 	select {
 	case <-s.ctx.Done():
 		return nil, fmt.Errorf("terminated")
@@ -371,14 +373,14 @@ func (s *rtspServer) apiConnsGet(uuid uuid.UUID) (*apiRTSPConn, error) {
 
 	conn := s.findConnByUUID(uuid)
 	if conn == nil {
-		return nil, errAPINotFound
+		return nil, common.ErrAPINotFound
 	}
 
 	return conn.apiItem(), nil
 }
 
 // apiSessionsList is called by api and metrics.
-func (s *rtspServer) apiSessionsList() (*apiRTSPSessionList, error) {
+func (s *rtspServer) ApiSessionsList() (*proto.ApiRTSPSessionList, error) {
 	select {
 	case <-s.ctx.Done():
 		return nil, fmt.Errorf("terminated")
@@ -388,8 +390,8 @@ func (s *rtspServer) apiSessionsList() (*apiRTSPSessionList, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	data := &apiRTSPSessionList{
-		Items: []*apiRTSPSession{},
+	data := &proto.ApiRTSPSessionList{
+		Items: []*proto.ApiRTSPSession{},
 	}
 
 	for _, s := range s.sessions {
@@ -404,7 +406,7 @@ func (s *rtspServer) apiSessionsList() (*apiRTSPSessionList, error) {
 }
 
 // apiSessionsGet is called by api.
-func (s *rtspServer) apiSessionsGet(uuid uuid.UUID) (*apiRTSPSession, error) {
+func (s *rtspServer) ApiSessionsGet(uuid uuid.UUID) (*proto.ApiRTSPSession, error) {
 	select {
 	case <-s.ctx.Done():
 		return nil, fmt.Errorf("terminated")
@@ -416,14 +418,14 @@ func (s *rtspServer) apiSessionsGet(uuid uuid.UUID) (*apiRTSPSession, error) {
 
 	_, sx := s.findSessionByUUID(uuid)
 	if sx == nil {
-		return nil, errAPINotFound
+		return nil, common.ErrAPINotFound
 	}
 
 	return sx.apiItem(), nil
 }
 
 // apiSessionsKick is called by api.
-func (s *rtspServer) apiSessionsKick(uuid uuid.UUID) error {
+func (s *rtspServer) ApiSessionsKick(uuid uuid.UUID) error {
 	select {
 	case <-s.ctx.Done():
 		return fmt.Errorf("terminated")
@@ -435,7 +437,7 @@ func (s *rtspServer) apiSessionsKick(uuid uuid.UUID) error {
 
 	key, sx := s.findSessionByUUID(uuid)
 	if sx == nil {
-		return errAPINotFound
+		return common.ErrAPINotFound
 	}
 
 	sx.close()

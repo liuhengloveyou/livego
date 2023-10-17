@@ -14,6 +14,7 @@ import (
 	"github.com/pion/rtp"
 
 	"github.com/liuhengloveyou/livego/conf"
+	"github.com/liuhengloveyou/livego/proto"
 	"github.com/liuhengloveyou/livego/stream"
 )
 
@@ -363,8 +364,8 @@ func (s *rtspSession) onPause(_ *gortsplib.ServerHandlerOnPauseCtx) (*base.Respo
 }
 
 // apiReaderDescribe implements reader.
-func (s *rtspSession) apiReaderDescribe() apiPathSourceOrReader {
-	return apiPathSourceOrReader{
+func (s *rtspSession) apiReaderDescribe() proto.ApiPathSourceOrReader {
+	return proto.ApiPathSourceOrReader{
 		Type: func() string {
 			if s.isTLS {
 				return "rtspsSession"
@@ -376,7 +377,7 @@ func (s *rtspSession) apiReaderDescribe() apiPathSourceOrReader {
 }
 
 // apiSourceDescribe implements source.
-func (s *rtspSession) apiSourceDescribe() apiPathSourceOrReader {
+func (s *rtspSession) apiSourceDescribe() proto.ApiPathSourceOrReader {
 	return s.apiReaderDescribe()
 }
 
@@ -395,25 +396,25 @@ func (s *rtspSession) onStreamWriteError(ctx *gortsplib.ServerHandlerOnStreamWri
 	fmt.Println(ctx.Error.Error())
 }
 
-func (s *rtspSession) apiItem() *apiRTSPSession {
+func (s *rtspSession) apiItem() *proto.ApiRTSPSession {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	return &apiRTSPSession{
+	return &proto.ApiRTSPSession{
 		ID:         s.uuid,
 		Created:    s.created,
 		RemoteAddr: s.remoteAddr().String(),
-		State: func() apiRTSPSessionState {
+		State: func() proto.ApiRTSPSessionState {
 			switch s.state {
 			case gortsplib.ServerSessionStatePrePlay,
 				gortsplib.ServerSessionStatePlay:
-				return apiRTSPSessionStateRead
+				return proto.ApiRTSPSessionStateRead
 
 			case gortsplib.ServerSessionStatePreRecord,
 				gortsplib.ServerSessionStateRecord:
-				return apiRTSPSessionStatePublish
+				return proto.ApiRTSPSessionStatePublish
 			}
-			return apiRTSPSessionStateIdle
+			return proto.ApiRTSPSessionStateIdle
 		}(),
 		Path: s.pathName,
 		Transport: func() *string {

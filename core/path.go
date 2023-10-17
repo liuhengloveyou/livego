@@ -13,6 +13,7 @@ import (
 	"github.com/bluenviron/gortsplib/v4/pkg/url"
 
 	"github.com/liuhengloveyou/livego/conf"
+	"github.com/liuhengloveyou/livego/proto"
 	"github.com/liuhengloveyou/livego/record"
 	"github.com/liuhengloveyou/livego/stream"
 )
@@ -143,7 +144,7 @@ type pathStopPublisherReq struct {
 }
 
 type pathAPIPathsListRes struct {
-	data  *apiPathList
+	data  *proto.ApiPathList
 	paths map[string]*path
 }
 
@@ -153,7 +154,7 @@ type pathAPIPathsListReq struct {
 
 type pathAPIPathsGetRes struct {
 	path *path
-	data *apiPath
+	data *proto.ApiPath
 	err  error
 }
 
@@ -704,10 +705,10 @@ func (pa *path) doRemoveReader(req pathRemoveReaderReq) {
 
 func (pa *path) doAPIPathsGet(req pathAPIPathsGetReq) {
 	req.res <- pathAPIPathsGetRes{
-		data: &apiPath{
+		data: &proto.ApiPath{
 			Name:     pa.name,
 			ConfName: pa.confName,
-			Source: func() *apiPathSourceOrReader {
+			Source: func() *proto.ApiPathSourceOrReader {
 				if pa.source == nil {
 					return nil
 				}
@@ -734,8 +735,8 @@ func (pa *path) doAPIPathsGet(req pathAPIPathsGetReq) {
 				}
 				return pa.stream.BytesReceived()
 			}(),
-			Readers: func() []apiPathSourceOrReader {
-				ret := []apiPathSourceOrReader{}
+			Readers: func() []proto.ApiPathSourceOrReader {
+				ret := []proto.ApiPathSourceOrReader{}
 				for r := range pa.readers {
 					ret = append(ret, r.apiReaderDescribe())
 				}
@@ -1121,7 +1122,7 @@ func (pa *path) removeReader(req pathRemoveReaderReq) {
 }
 
 // apiPathsGet is called by api.
-func (pa *path) apiPathsGet(req pathAPIPathsGetReq) (*apiPath, error) {
+func (pa *path) apiPathsGet(req pathAPIPathsGetReq) (*proto.ApiPath, error) {
 	req.res = make(chan pathAPIPathsGetRes)
 	select {
 	case pa.chAPIPathsGet <- req:

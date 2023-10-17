@@ -14,6 +14,7 @@ import (
 	"github.com/pion/webrtc/v3"
 
 	"github.com/liuhengloveyou/livego/conf"
+	"github.com/liuhengloveyou/livego/proto"
 	"github.com/liuhengloveyou/livego/webrtcpc"
 	"github.com/liuhengloveyou/livego/whip"
 )
@@ -163,8 +164,8 @@ func (s *webRTCSource) run(ctx context.Context, cnf *conf.Path, _ chan *conf.Pat
 }
 
 // apiSourceDescribe implements sourceStaticImpl.
-func (*webRTCSource) apiSourceDescribe() apiPathSourceOrReader {
-	return apiPathSourceOrReader{
+func (*webRTCSource) apiSourceDescribe() proto.ApiPathSourceOrReader {
+	return proto.ApiPathSourceOrReader{
 		Type: "webRTCSource",
 		ID:   "",
 	}
