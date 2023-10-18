@@ -3,7 +3,7 @@
 # General settings 
 readTimeout: 10s
 writeTimeout: 10s
-writeQueueSize: 8192
+writeQueueSize: 81920
 udpMaxPayloadSize: 1472
 # HTTP URL to perform external authentication.
 # Every time a user wants to authenticate, the server calls this URL
