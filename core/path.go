@@ -482,10 +482,6 @@ func (pa *path) doReloadConf(newConf *conf.Path) {
 	pa.conf = newConf
 	pa.confMutex.Unlock()
 
-	if pa.conf.HasStaticSource() {
-		go pa.source.(*sourceStatic).reloadConf(newConf)
-	}
-
 	if pa.conf.Record {
 		if pa.stream != nil && pa.recordAgent == nil {
 			pa.startRecording()

@@ -3,7 +3,7 @@
 # General settings 
 readTimeout: 10s
 writeTimeout: 10s
-writeQueueSize: 81920
+writeQueueSize: 8192
 udpMaxPayloadSize: 1472
 # HTTP URL to perform external authentication.
 # Every time a user wants to authenticate, the server calls this URL
@@ -46,7 +46,7 @@ runOnConnectRestart: no
 ###############################################
 # RTSP settings
 rtsp: yes
-protocols: [udp, multicast, tcp]
+protocols: [tcp, udp, multicast]
 encryption: "no"
 rtspAddress: :8554
 rtspsAddress: :8322
@@ -98,15 +98,11 @@ webrtcICEUDPMuxAddress:
 webrtcICETCPMuxAddress:
 
 ###############################################
-# SRT settings
-srt: no
-srtAddress: :8890
-
-###############################################
 # Path settings
 paths:
   camera1:
-    source: rtsp://admin:Abc123456@192.168.100.234:554/Streaming/Channels/101
+    source: rtsp://admin:Abc123456@192.168.100.234:554/Streaming/Channels/201
+    sourceProtocol: tcp
   # dahua:
   #   source: rtsp://admin:admin123@192.168.100.234:554/cam/realmonitor?channel=1&subtype=0
   #   sourceOnDemand: no
@@ -115,15 +111,12 @@ paths:
   all:
     ###############################################
     # General path settings
-
     # Source of the stream. This can be:
     # * publisher -> the stream is provided by a RTSP, RTMP, WebRTC or SRT client
     # * rtsp://existing-url -> the stream is pulled from another RTSP server / camera
     # * rtsps://existing-url -> the stream is pulled from another RTSP server / camera with RTSPS
     # * rtmp://existing-url -> the stream is pulled from another RTMP server / camera
     # * rtmps://existing-url -> the stream is pulled from another RTMP server / camera with RTMPS
-    # * http://existing-url/stream.m3u8 -> the stream is pulled from another HLS server / camera
-    # * https://existing-url/stream.m3u8 -> the stream is pulled from another HLS server / camera with HTTPS
     # * udp://ip:port -> the stream is pulled with UDP, by listening on the specified IP and port
     # * srt://existing-url -> the stream is pulled from another SRT server / camera
     # * whep://existing-url -> the stream is pulled from another WebRTC server / camera

@@ -176,7 +176,7 @@ func (pconf *Path) setDefaults() {
 	pconf.RPICameraAfMode = "auto"
 	pconf.RPICameraAfRange = "normal"
 	pconf.RPICameraAfSpeed = "normal"
-	pconf.RPICameraTextOverlay = "%Y-%m-%d %H:%M:%S - MediaMTX"
+	pconf.RPICameraTextOverlay = "%Y-%m-%d %H:%M:%S - livego"
 
 	// Hooks
 	pconf.RunOnDemandStartTimeout = 10 * StringDuration(time.Second)

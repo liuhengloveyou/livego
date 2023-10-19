@@ -241,7 +241,7 @@ func TestReadTracks(t *testing.T) {
 			},
 		},
 		{
-			"issue mediamtx/386 (missing metadata), video+audio",
+			"issue livego/386 (missing metadata), video+audio",
 			&format.H264{
 				PayloadTyp:        96,
 				SPS:               h264SPS,
@@ -309,7 +309,7 @@ func TestReadTracks(t *testing.T) {
 			},
 		},
 		{
-			"issue mediamtx/386 (missing metadata), audio",
+			"issue livego/386 (missing metadata), audio",
 			nil,
 			&format.MPEG4Audio{
 				PayloadTyp: 96,
@@ -445,7 +445,7 @@ func TestReadTracks(t *testing.T) {
 			},
 		},
 		{
-			"issue mediamtx/2232 (xsplit broadcaster)",
+			"issue livego/2232 (xsplit broadcaster)",
 			&format.H265{
 				PayloadTyp: 96,
 				VPS:        h265VPS,
@@ -604,7 +604,7 @@ func TestReadTracks(t *testing.T) {
 			},
 		},
 		{
-			"issue mediamtx/2289 (missing videocodecid)",
+			"issue livego/2289 (missing videocodecid)",
 			&format.H264{
 				PayloadTyp: 96,
 				SPS: []byte{

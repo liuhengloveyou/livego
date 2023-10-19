@@ -62,7 +62,7 @@ func newUDPSource(
 }
 
 // run implements sourceStaticImpl.
-func (s *udpSource) run(ctx context.Context, cnf *conf.Path, _ chan *conf.Path) error {
+func (s *udpSource) run(ctx context.Context, cnf *conf.Path) error {
 	hostPort := cnf.Source[len("udp://"):]
 
 	addr, err := net.ResolveUDPAddr("udp", hostPort)

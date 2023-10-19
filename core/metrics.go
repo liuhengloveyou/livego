@@ -27,7 +27,6 @@ type metrics struct {
 	rtspServer    proto.ApiRTSPServer
 	rtspsServer   proto.ApiRTSPServer
 	rtmpServer    proto.ApiRTMPServer
-	hlsManager    proto.ApiHLSManager
 	webRTCManager proto.ApiWebRTCManager
 }
 
@@ -211,13 +210,6 @@ func (m *metrics) pathManagerSet(s proto.ApiPathManager) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	// m.pathManager = s
-}
-
-// setHLSManager is called by hlsManager.
-func (m *metrics) setHLSManager(s proto.ApiHLSManager) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	m.hlsManager = s
 }
 
 // setRTSPServer is called by rtspServer (plain).

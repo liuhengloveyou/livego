@@ -14,7 +14,7 @@ import (
 
 func buildImage(image string) error {
 	ecmd := exec.Command("docker", "build", filepath.Join("images", image),
-		"-t", "mediamtx-test-"+image)
+		"-t", "livego-test-"+image)
 	ecmd.Stdout = nil
 	ecmd.Stderr = os.Stderr
 	return ecmd.Run()

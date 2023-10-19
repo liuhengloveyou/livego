@@ -13,11 +13,6 @@ type ApiPathManager interface {
 	ApiPathsGet(string) (*ApiPath, error)
 }
 
-type ApiHLSManager interface {
-	ApiMuxersList() (*ApiHLSMuxerList, error)
-	ApiMuxersGet(string) (*ApiHLSMuxer, error)
-}
-
 type ApiRTSPServer interface {
 	ApiConnsList() (*ApiRTSPConnsList, error)
 	ApiConnsGet(uuid.UUID) (*ApiRTSPConn, error)

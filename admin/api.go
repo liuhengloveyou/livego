@@ -106,7 +106,6 @@ type Api struct {
 	rtspsServer   proto.ApiRTSPServer
 	rtmpServer    proto.ApiRTMPServer
 	rtmpsServer   proto.ApiRTMPServer
-	hlsManager    proto.ApiHLSManager
 	webRTCManager proto.ApiWebRTCManager
 	srtServer     proto.ApiSRTServer
 	parent        proto.ApiParent
@@ -124,7 +123,6 @@ func newApi(
 	rtspsServer proto.ApiRTSPServer,
 	rtmpServer proto.ApiRTMPServer,
 	rtmpsServer proto.ApiRTMPServer,
-	hlsManager proto.ApiHLSManager,
 	webRTCManager proto.ApiWebRTCManager,
 	srtServer proto.ApiSRTServer,
 	parent proto.ApiParent,
@@ -136,7 +134,6 @@ func newApi(
 		rtspsServer:   rtspsServer,
 		rtmpServer:    rtmpServer,
 		rtmpsServer:   rtmpsServer,
-		hlsManager:    hlsManager,
 		webRTCManager: webRTCManager,
 		srtServer:     srtServer,
 		parent:        parent,
@@ -162,11 +159,6 @@ func newApi(
 
 	group.GET("/v3/paths/list", a.onPathsList)
 	group.GET("/v3/paths/get/*name", a.onPathsGet)
-
-	if !interfaceIsEmpty(a.hlsManager) {
-		group.GET("/v3/hlsmuxers/list", a.onHLSMuxersList)
-		group.GET("/v3/hlsmuxers/get/*name", a.onHLSMuxersGet)
-	}
 
 	if !interfaceIsEmpty(a.rtspServer) {
 		group.GET("/v3/rtspconns/list", a.onRTSPConnsList)
@@ -814,40 +806,6 @@ func (a *Api) onRTMPSConnsKick(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusOK)
-}
-
-func (a *Api) onHLSMuxersList(ctx *gin.Context) {
-	data, err := a.hlsManager.ApiMuxersList()
-	if err != nil {
-		a.writeServerError(ctx, err)
-		return
-	}
-
-	data.ItemCount = len(data.Items)
-	pageCount, err := paginate(&data.Items, ctx.Query("itemsPerPage"), ctx.Query("page"))
-	if err != nil {
-		a.writeUserError(ctx, err)
-		return
-	}
-	data.PageCount = pageCount
-
-	ctx.JSON(http.StatusOK, data)
-}
-
-func (a *Api) onHLSMuxersGet(ctx *gin.Context) {
-	name, ok := paramName(ctx)
-	if !ok {
-		a.writeUserError(ctx, fmt.Errorf("invalid name"))
-		return
-	}
-
-	data, err := a.hlsManager.ApiMuxersGet(name)
-	if err != nil {
-		a.writeServerErrorOrNotFound(ctx, err)
-		return
-	}
-
-	ctx.JSON(http.StatusOK, data)
 }
 
 func (a *Api) onWebRTCSessionsList(ctx *gin.Context) {

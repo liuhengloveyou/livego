@@ -383,7 +383,7 @@ func (s *rtspSession) apiSourceDescribe() proto.ApiPathSourceOrReader {
 
 // onPacketLost is called by rtspServer.
 func (s *rtspSession) onPacketLost(ctx *gortsplib.ServerHandlerOnPacketLostCtx) {
-	fmt.Println(ctx.Error.Error())
+	fmt.Println("rtspSession.onPacketLost: ", ctx.Error.Error())
 }
 
 // onDecodeError is called by rtspServer.

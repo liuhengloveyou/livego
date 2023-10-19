@@ -102,15 +102,15 @@ func newContainer(image string, name string, args []string) (*container, error) 
 		name: name,
 	}
 
-	exec.Command("docker", "kill", "mediamtx-test-"+name).Run()
-	exec.Command("docker", "wait", "mediamtx-test-"+name).Run()
+	exec.Command("docker", "kill", "livego-test-"+name).Run()
+	exec.Command("docker", "wait", "livego-test-"+name).Run()
 
 	// --network=host is needed to test multicast
 	cmd := []string{
 		"docker", "run",
 		"--network=host",
-		"--name=mediamtx-test-" + name,
-		"mediamtx-test-" + image,
+		"--name=livego-test-" + name,
+		"livego-test-" + image,
 	}
 	cmd = append(cmd, args...)
 	ecmd := exec.Command(cmd[0], cmd[1:]...)
@@ -128,14 +128,14 @@ func newContainer(image string, name string, args []string) (*container, error) 
 }
 
 func (c *container) close() {
-	exec.Command("docker", "kill", "mediamtx-test-"+c.name).Run()
-	exec.Command("docker", "wait", "mediamtx-test-"+c.name).Run()
-	exec.Command("docker", "rm", "mediamtx-test-"+c.name).Run()
+	exec.Command("docker", "kill", "livego-test-"+c.name).Run()
+	exec.Command("docker", "wait", "livego-test-"+c.name).Run()
+	exec.Command("docker", "rm", "livego-test-"+c.name).Run()
 }
 
 func (c *container) wait() int {
-	exec.Command("docker", "wait", "mediamtx-test-"+c.name).Run()
-	out, _ := exec.Command("docker", "inspect", "mediamtx-test-"+c.name,
+	exec.Command("docker", "wait", "livego-test-"+c.name).Run()
+	out, _ := exec.Command("docker", "inspect", "livego-test-"+c.name,
 		"-f", "{{.State.ExitCode}}").Output()
 	code, _ := strconv.ParseInt(string(out[:len(out)-1]), 10, 32)
 	return int(code)

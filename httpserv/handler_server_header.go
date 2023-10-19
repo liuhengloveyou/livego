@@ -10,6 +10,6 @@ type handlerServerHeader struct {
 }
 
 func (h *handlerServerHeader) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Server", "mediamtx")
+	w.Header().Set("Server", "livego")
 	h.Handler.ServeHTTP(w, r)
 }

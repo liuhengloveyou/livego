@@ -15,7 +15,7 @@ const (
 )
 
 type sourceStaticImpl interface {
-	run(context.Context, *conf.Path, chan *conf.Path) error
+	run(context.Context, *conf.Path) error
 	apiSourceDescribe() proto.ApiPathSourceOrReader
 }
 
@@ -35,7 +35,6 @@ type sourceStatic struct {
 	running   bool
 
 	// in
-	chReloadConf                  chan *conf.Path
 	chSourceStaticImplSetReady    chan pathSourceStaticSetReadyReq
 	chSourceStaticImplSetNotReady chan pathSourceStaticSetNotReadyReq
 
@@ -53,7 +52,6 @@ func newSourceStatic(
 	s := &sourceStatic{
 		conf:                          cnf,
 		parent:                        parent,
-		chReloadConf:                  make(chan *conf.Path),
 		chSourceStaticImplSetReady:    make(chan pathSourceStaticSetReadyReq),
 		chSourceStaticImplSetNotReady: make(chan pathSourceStaticSetNotReadyReq),
 	}
@@ -83,10 +81,6 @@ func newSourceStatic(
 		strings.HasPrefix(cnf.Source, "wheps://"):
 		s.impl = newWebRTCSource(
 			readTimeout,
-			s)
-
-	case cnf.Source == "rpiCamera":
-		s.impl = newRPICameraSource(
 			s)
 	}
 
@@ -135,12 +129,11 @@ func (s *sourceStatic) run() {
 	var innerCtx context.Context
 	var innerCtxCancel func()
 	implErr := make(chan error)
-	innerReloadConf := make(chan *conf.Path)
 
 	recreate := func() {
 		innerCtx, innerCtxCancel = context.WithCancel(context.Background())
 		go func() {
-			implErr <- s.impl.run(innerCtx, s.conf, innerReloadConf)
+			implErr <- s.impl.run(innerCtx, s.conf)
 		}()
 	}
 
@@ -156,19 +149,6 @@ func (s *sourceStatic) run() {
 			fmt.Println(err.Error())
 			recreating = true
 			recreateTimer = time.NewTimer(sourceStaticRetryPause)
-
-		case newConf := <-s.chReloadConf:
-			s.conf = newConf
-			if !recreating {
-				cReloadConf := innerReloadConf
-				cInnerCtx := innerCtx
-				go func() {
-					select {
-					case cReloadConf <- newConf:
-					case <-cInnerCtx.Done():
-					}
-				}()
-			}
 
 		case req := <-s.chSourceStaticImplSetReady:
 			s.parent.sourceStaticSetReady(s.ctx, req)
@@ -187,13 +167,6 @@ func (s *sourceStatic) run() {
 			}
 			return
 		}
-	}
-}
-
-func (s *sourceStatic) reloadConf(newConf *conf.Path) {
-	select {
-	case s.chReloadConf <- newConf:
-	case <-s.ctx.Done():
 	}
 }
 

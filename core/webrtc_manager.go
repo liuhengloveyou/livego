@@ -29,7 +29,7 @@ const (
 	webrtcHandshakeTimeout     = 10 * time.Second
 	webrtcTrackGatherTimeout   = 3 * time.Second
 	webrtcPayloadMaxSize       = 1188 // 1200 - 12 (RTP header)
-	webrtcStreamID             = "mediamtx"
+	webrtcStreamID             = "livego"
 	webrtcTurnSecretExpiration = 24 * 3600 * time.Second
 )
 

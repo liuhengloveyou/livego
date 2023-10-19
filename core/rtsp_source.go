@@ -88,7 +88,7 @@ func newRTSPSource(
 }
 
 // run implements sourceStaticImpl.
-func (s *rtspSource) run(ctx context.Context, cnf *conf.Path, reloadConf chan *conf.Path) error {
+func (s *rtspSource) run(ctx context.Context, cnf *conf.Path) error {
 	c := &gortsplib.Client{
 		Transport:      cnf.SourceProtocol.Transport,
 		TLSConfig:      tlsConfigForFingerprint(cnf.SourceFingerprint),
@@ -106,13 +106,14 @@ func (s *rtspSource) run(ctx context.Context, cnf *conf.Path, reloadConf chan *c
 			fmt.Println(err.Error())
 		},
 		OnPacketLost: func(err error) {
-			fmt.Println(err.Error())
+			fmt.Println("rtspSourc.OnPacketLost:", err.Error())
 		},
 		OnDecodeError: func(err error) {
 			fmt.Println(err.Error())
 		},
 	}
 
+	fmt.Println("@@@@@@@@@@>>>>>>>>>>>>>", cnf.SourceProtocol.Transport)
 	u, err := url.Parse(cnf.Source)
 	if err != nil {
 		return err
@@ -185,8 +186,6 @@ func (s *rtspSource) run(ctx context.Context, cnf *conf.Path, reloadConf chan *c
 		select {
 		case err := <-readErr:
 			return err
-
-		case <-reloadConf:
 
 		case <-ctx.Done():
 			c.Close()

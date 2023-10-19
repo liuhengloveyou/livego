@@ -42,7 +42,7 @@ func newRTMPSource(
 }
 
 // run implements sourceStaticImpl.
-func (s *rtmpSource) run(ctx context.Context, cnf *conf.Path, reloadConf chan *conf.Path) error {
+func (s *rtmpSource) run(ctx context.Context, cnf *conf.Path) error {
 
 	u, err := url.Parse(cnf.Source)
 	if err != nil {
@@ -81,8 +81,6 @@ func (s *rtmpSource) run(ctx context.Context, cnf *conf.Path, reloadConf chan *c
 		case err := <-readDone:
 			nconn.Close()
 			return err
-
-		case <-reloadConf:
 
 		case <-ctx.Done():
 			nconn.Close()

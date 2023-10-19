@@ -43,7 +43,7 @@ func newWebRTCSource(
 }
 
 // run implements sourceStaticImpl.
-func (s *webRTCSource) run(ctx context.Context, cnf *conf.Path, _ chan *conf.Path) error {
+func (s *webRTCSource) run(ctx context.Context, cnf *conf.Path) error {
 	u, err := url.Parse(cnf.Source)
 	if err != nil {
 		return err

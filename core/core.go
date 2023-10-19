@@ -24,8 +24,8 @@ var version = "v0.0.0"
 
 var defaultConfPaths = []string{
 	"livego.yml",
-	"/usr/local/etc/mediamtx.yml",
-	"/usr/etc/mediamtx.yml",
+	"/usr/local/etc/livego.yml",
+	"/usr/etc/livego.yml",
 }
 
 func gatherCleanerEntries(paths map[string]*conf.Path) []record.CleanerEntry {
@@ -60,12 +60,6 @@ func gatherCleanerEntries(paths map[string]*conf.Path) []record.CleanerEntry {
 	return out2
 }
 
-// var cli struct {
-// 	Version  bool   `help:"print version"`
-// 	Confpath string `arg:"" default:""`
-// }
-
-// Core is an instance of mediamtx.
 type Core struct {
 	ctx           context.Context
 	ctxCancel     func()

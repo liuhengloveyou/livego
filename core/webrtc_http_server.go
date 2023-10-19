@@ -178,7 +178,7 @@ func (s *webRTCHTTPServer) onRequest(ctx *gin.Context) {
 		if res.err != nil {
 			if terr, ok := res.err.(*errAuthentication); ok {
 				if !hasCredentials {
-					ctx.Header("WWW-Authenticate", `Basic realm="mediamtx"`)
+					ctx.Header("WWW-Authenticate", `Basic realm="livego"`)
 					ctx.Writer.WriteHeader(http.StatusUnauthorized)
 					return
 				}
