@@ -213,9 +213,9 @@ func (pm *pathManager) doReloadConf(newPaths map[string]*conf.Path) {
 			// configuration has changed
 			if !newPath.Equal(pathConf) {
 				if pathConfCanBeUpdated(pathConf, newPath) { // paths associated with the configuration can be updated
-					for pa := range pm.pathsByConf[confName] {
-						go pa.reloadConf(newPath)
-					}
+					// for pa := range pm.pathsByConf[confName] {
+					// 	// go pa.reloadConf(newPath)
+					// }
 				} else { // paths associated with the configuration must be recreated
 					for pa := range pm.pathsByConf[confName] {
 						pm.removePath(pa)

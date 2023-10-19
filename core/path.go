@@ -197,7 +197,6 @@ type path struct {
 	onDemandPublisherCloseTimer    *time.Timer
 
 	// in
-	chReloadConf              chan *conf.Path
 	chSourceStaticSetReady    chan pathSourceStaticSetReadyReq
 	chSourceStaticSetNotReady chan pathSourceStaticSetNotReadyReq
 	chDescribe                chan pathDescribeReq
@@ -248,7 +247,6 @@ func newPath(
 		onDemandStaticSourceCloseTimer: newEmptyTimer(),
 		onDemandPublisherReadyTimer:    newEmptyTimer(),
 		onDemandPublisherCloseTimer:    newEmptyTimer(),
-		chReloadConf:                   make(chan *conf.Path),
 		chSourceStaticSetReady:         make(chan pathSourceStaticSetReadyReq),
 		chSourceStaticSetNotReady:      make(chan pathSourceStaticSetNotReadyReq),
 		chDescribe:                     make(chan pathDescribeReq),
@@ -381,9 +379,6 @@ func (pa *path) runInner() error {
 				return fmt.Errorf("not in use")
 			}
 
-		case newConf := <-pa.chReloadConf:
-			pa.doReloadConf(newConf)
-
 		case req := <-pa.chSourceStaticSetReady:
 			pa.doSourceStaticSetReady(req)
 
@@ -477,20 +472,20 @@ func (pa *path) doOnDemandPublisherCloseTimer() {
 	pa.onDemandPublisherStop("not needed by anyone")
 }
 
-func (pa *path) doReloadConf(newConf *conf.Path) {
-	pa.confMutex.Lock()
-	pa.conf = newConf
-	pa.confMutex.Unlock()
+// func (pa *path) doReloadConf(newConf *conf.Path) {
+// 	pa.confMutex.Lock()
+// 	pa.conf = newConf
+// 	pa.confMutex.Unlock()
 
-	if pa.conf.Record {
-		if pa.stream != nil && pa.recordAgent == nil {
-			pa.startRecording()
-		}
-	} else if pa.recordAgent != nil {
-		pa.recordAgent.Close()
-		pa.recordAgent = nil
-	}
-}
+// 	if pa.conf.Record {
+// 		if pa.stream != nil && pa.recordAgent == nil {
+// 			pa.startRecording()
+// 		}
+// 	} else if pa.recordAgent != nil {
+// 		pa.recordAgent.Close()
+// 		pa.recordAgent = nil
+// 	}
+// }
 
 func (pa *path) doSourceStaticSetReady(req pathSourceStaticSetReadyReq) {
 	err := pa.setReady(req.desc, req.generateRTPPackets)
@@ -1007,12 +1002,12 @@ func (pa *path) addReaderPost(req pathAddReaderReq) {
 }
 
 // reloadConf is called by pathManager.
-func (pa *path) reloadConf(newConf *conf.Path) {
-	select {
-	case pa.chReloadConf <- newConf:
-	case <-pa.ctx.Done():
-	}
-}
+// func (pa *path) reloadConf(newConf *conf.Path) {
+// 	select {
+// 	case pa.chReloadConf <- newConf:
+// 	case <-pa.ctx.Done():
+// 	}
+// }
 
 // sourceStaticSetReady is called by sourceStatic.
 func (pa *path) sourceStaticSetReady(sourceStaticCtx context.Context, req pathSourceStaticSetReadyReq) {

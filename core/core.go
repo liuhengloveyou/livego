@@ -17,7 +17,6 @@ import (
 
 	"github.com/liuhengloveyou/livego/conf"
 	"github.com/liuhengloveyou/livego/record"
-	"github.com/liuhengloveyou/livego/rlimit"
 )
 
 var version = "v0.0.0"
@@ -177,7 +176,7 @@ func (p *Core) createResources(initial bool) error {
 	if initial {
 		if p.confPath != "" {
 			a, _ := filepath.Abs(p.confPath)
-			fmt.Println("configuration loaded from %s", a)
+			fmt.Printf("configuration loaded from %s", a)
 		} else {
 			list := make([]string, len(defaultConfPaths))
 			for i, pa := range defaultConfPaths {
@@ -185,14 +184,10 @@ func (p *Core) createResources(initial bool) error {
 				list[i] = a
 			}
 
-			fmt.Println(
+			fmt.Printf(
 				"configuration file not found (looked in %s), using an empty configuration",
 				strings.Join(list, ", "))
 		}
-
-		// on Linux, try to raise the number of file descriptors that can be opened
-		// to allow the maximum possible number of clients.
-		rlimit.Raise() //nolint:errcheck
 
 		gin.SetMode(gin.ReleaseMode)
 	}

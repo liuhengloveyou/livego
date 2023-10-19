@@ -103,17 +103,16 @@ func (s *rtspSource) run(ctx context.Context, cnf *conf.Path) error {
 			fmt.Println("[s->c] ", res)
 		},
 		OnTransportSwitch: func(err error) {
-			fmt.Println(err.Error())
+			fmt.Println("rtspSourc.OnTransportSwitch: ", err.Error())
 		},
 		OnPacketLost: func(err error) {
-			fmt.Println("rtspSourc.OnPacketLost:", err.Error())
+			fmt.Println("rtspSourc.OnPacketLost: ", err.Error())
 		},
 		OnDecodeError: func(err error) {
 			fmt.Println(err.Error())
 		},
 	}
 
-	fmt.Println("@@@@@@@@@@>>>>>>>>>>>>>", cnf.SourceProtocol.Transport)
 	u, err := url.Parse(cnf.Source)
 	if err != nil {
 		return err
