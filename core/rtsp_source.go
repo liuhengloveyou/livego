@@ -89,6 +89,8 @@ func newRTSPSource(
 
 // run implements sourceStaticImpl.
 func (s *rtspSource) run(ctx context.Context, cnf *conf.Path) error {
+	fmt.Println("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@", cnf.SourceProtocol.Transport)
+
 	c := &gortsplib.Client{
 		Transport:      cnf.SourceProtocol.Transport,
 		TLSConfig:      tlsConfigForFingerprint(cnf.SourceFingerprint),
