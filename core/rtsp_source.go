@@ -1,7 +1,9 @@
 package core
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"time"
 
@@ -89,8 +91,6 @@ func newRTSPSource(
 
 // run implements sourceStaticImpl.
 func (s *rtspSource) run(ctx context.Context, cnf *conf.Path) error {
-	fmt.Println("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@", cnf.SourceProtocol.Transport)
-
 	c := &gortsplib.Client{
 		Transport:      cnf.SourceProtocol.Transport,
 		TLSConfig:      tlsConfigForFingerprint(cnf.SourceFingerprint),
@@ -164,7 +164,19 @@ func (s *rtspSource) run(ctx context.Context, cnf *conf.Path) error {
 							return
 						}
 
-						res.stream.WriteRTPPacket(cmedi, cforma, pkt, time.Now(), pts)
+						ntp := time.Now()
+						// 华为摄像头取rtp扩展头里的ntp
+						if pkt.ExtensionProfile == 0xabac {
+							var second, microSecond uint32
+							binary.Read(bytes.NewBuffer(pkt.Header.GetExtension(0)), binary.BigEndian, &second)
+							binary.Read(bytes.NewBuffer(pkt.Header.GetExtension(0)[4:]), binary.BigEndian, &microSecond)
+
+							t1900, _ := time.ParseInLocation("2006-01-02", "1900-01-01", time.UTC)
+							ntp = t1900.Add(time.Second * time.Duration(second)).Add(time.Millisecond * time.Duration(float64(microSecond)/4294.967296/1000))
+							// fmt.Printf("rtp>>> %d %d %f\n", ntp.Unix(), second, float64(microSecond)/4294.967296/1000)
+						}
+
+						res.stream.WriteRTPPacket(cmedi, cforma, pkt, ntp, pts)
 					})
 				}
 			}

@@ -225,9 +225,11 @@ func newWebRTCOutgoingTrackVideo(sess *webRTCSession, desc *description.Session)
 				return nil
 			}
 
+			outTrack.sess.LastNTP = tunit.GetNTP().UnixMilli()
+			outTrack.sess.LastPTS = tunit.GetPTS().Milliseconds()
+			// fmt.Println(">>>>>>>>>>>", time.Now().UnixMilli(), tunit.GetNTP(), outTrack.sess.AmendMs)
 			if outTrack.sess.AmendMs > 0 {
 				sub := time.Since(tunit.GetNTP()).Milliseconds() - outTrack.sess.AmendMs
-				// fmt.Println(">>>>>>>>>>>", time.Now().UnixMilli(), tunit.NTP.UnixMilli(), outTrack.sess.AmendMs, sub)
 				if sub < 0 {
 					time.Sleep(time.Duration(0-sub) * time.Millisecond)
 				}
@@ -373,7 +375,7 @@ func (t *webRTCOutgoingTrack) start(
 			time.Sleep(time.Second)
 			// s := stream.GetStream("video")
 			if t.sess != nil && t.sess.DataChannel != nil {
-				if sendErr := t.sess.DataChannel.SendText(fmt.Sprintf("dataChannel %v", t.sess.AmendMs)); sendErr != nil {
+				if sendErr := t.sess.DataChannel.SendText(fmt.Sprintf("%v=%v", t.sess.LastNTP, t.sess.LastPTS)); sendErr != nil {
 					fmt.Println(sendErr)
 					return
 				}

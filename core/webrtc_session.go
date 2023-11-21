@@ -187,6 +187,8 @@ type webRTCSession struct {
 	chNew           chan webRTCNewSessionReq
 	chAddCandidates chan webRTCAddSessionCandidatesReq
 
+	LastNTP int64
+	LastPTS int64
 	AmendMs int64 // 增加延时多少ms
 }
 

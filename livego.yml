@@ -103,6 +103,12 @@ paths:
   camera1:
     source: rtsp://admin:Abc123456@192.168.100.234:554/Streaming/Channels/201
     sourceProtocol: tcp
+  camera2:
+    source: rtsp://admin:Abc123456@192.168.100.234:554/Streaming/Channels/101
+    sourceProtocol: tcp
+  huawei:
+    source: rtsp://admin:HuaWei123@192.168.100.236/LiveMedia/ch1/Media1
+    sourceProtocol: tcp
   # dahua:
   #   source: rtsp://admin:admin123@192.168.100.234:554/cam/realmonitor?channel=1&subtype=0
   #   sourceOnDemand: no
