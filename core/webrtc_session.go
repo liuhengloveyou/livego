@@ -509,8 +509,10 @@ func (s *webRTCSession) runRead() (int, error) {
 		// Register text message handling
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
 			iata, _ := strconv.Atoi(string(msg.Data))
-			if iata >= 0 {
-				s.AmendMs = int64(iata)
+			if iata > 0 {
+				s.AmendMs += int64(iata)
+			} else if s.AmendMs+int64(iata) >= 0 {
+				s.AmendMs += int64(iata)
 			}
 			fmt.Printf("Message from DataChannel '%s': '%s' %d\n", d.Label(), string(msg.Data), s.AmendMs)
 		})

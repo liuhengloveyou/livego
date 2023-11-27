@@ -375,7 +375,7 @@ func (t *webRTCOutgoingTrack) start(
 			time.Sleep(time.Second)
 			// s := stream.GetStream("video")
 			if t.sess != nil && t.sess.DataChannel != nil {
-				if sendErr := t.sess.DataChannel.SendText(fmt.Sprintf("%v=%v", t.sess.LastNTP, t.sess.LastPTS)); sendErr != nil {
+				if sendErr := t.sess.DataChannel.SendText(fmt.Sprintf("%v=%v %v", t.sess.LastNTP, t.sess.LastPTS, t.sess.AmendMs)); sendErr != nil {
 					fmt.Println(sendErr)
 					return
 				}
